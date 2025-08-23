@@ -301,7 +301,7 @@ class MainActivity : ComponentActivity() {
         val alarmManager = context.getSystemService(Context.ALARM_SERVICE) as AlarmManager
         val intent = Intent(context, NotificationReceiver::class.java).apply {
             putExtra(EXTRA_TITLE, title)
-            putExtra(EXTRA_MESSAGE, "通話を開始しましょう。")
+            putExtra(EXTRA_MESSAGE, "通話を開始しましょう！")
         }
         val pendingIntent = PendingIntent.getBroadcast(
             context,
