@@ -2,6 +2,7 @@ package com.example.a0726risu
 
 import android.Manifest
 import android.app.AlarmManager
+import android.app.Application
 import android.app.NotificationChannel
 import android.app.NotificationManager
 import android.app.PendingIntent
@@ -45,7 +46,6 @@ import androidx.compose.runtime.getValue
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.unit.sp
-import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewmodel.compose.viewModel
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
@@ -58,39 +58,84 @@ import java.util.Calendar
 import java.util.Locale
 import java.text.SimpleDateFormat
 import android.view.SurfaceView
+import androidx.compose.foundation.layout.safeDrawingPadding
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.verticalScroll
-import androidx.compose.material3.Button
 import androidx.compose.runtime.DisposableEffect
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.viewinterop.AndroidView
+import androidx.lifecycle.AndroidViewModel
 import androidx.navigation.NavType
 import androidx.navigation.navArgument
+import com.google.gson.Gson
+import com.google.gson.reflect.TypeToken
 import io.agora.rtc2.IRtcEngineEventHandler
 import io.agora.rtc2.RtcEngine
 import io.agora.rtc2.RtcEngineConfig
 import io.agora.rtc2.video.VideoCanvas
+import androidx.compose.runtime.LaunchedEffect
 
 data class CallInfo(
-    val id: UUID = UUID.randomUUID(),
+    val id: String = UUID.randomUUID().toString(),
     val name: String,
     val number: String,
     val time: String,
     val daysOfWeek: Set<Int>
 )
 
-class CallViewModel : ViewModel() {
+class CallViewModel(application: Application) : AndroidViewModel(application) {
+
+    private val sharedPreferences =
+        application.getSharedPreferences("call_prefs", Context.MODE_PRIVATE)
+    private val gson = Gson()
+
     private val _callList = MutableStateFlow<List<CallInfo>>(emptyList())
     val callList: StateFlow<List<CallInfo>> = _callList
+
     val notifications: StateFlow<List<NotificationInfo>> = NotificationRepository.notifications
+
+    init {
+        loadCallList()
+    }
 
     fun addCallInfo(name: String, number: String, time: String, daysOfWeek: Set<Int>) {
         val newInfo = CallInfo(name = name, number = number, time = time, daysOfWeek = daysOfWeek)
         _callList.value += newInfo
+        saveCallList()
     }
 
-    fun deleteCallInfo(id: UUID) {
+    fun deleteCallInfo(id: String) {
         _callList.value = _callList.value.filterNot { it.id == id }
+        saveCallList()
+    }
+
+    fun getCallInfoById(id: String): CallInfo? {
+        return _callList.value.find { it.id == id }
+    }
+
+    fun updateCallInfo(id: String, name: String, number: String, time: String, daysOfWeek: Set<Int>) {
+        val updatedList = _callList.value.map { info ->
+            if (info.id == id) {
+                info.copy(name = name, number = number, time = time, daysOfWeek = daysOfWeek)
+            } else {
+                info
+            }
+        }
+        _callList.value = updatedList
+        saveCallList()
+    }
+
+    private fun saveCallList() {
+        val jsonString = gson.toJson(_callList.value)
+        sharedPreferences.edit().putString("call_list_key", jsonString).apply()
+    }
+
+    private fun loadCallList() {
+        val jsonString = sharedPreferences.getString("call_list_key", null)
+        if (jsonString != null) {
+            val type = object : TypeToken<List<CallInfo>>() {}.type
+            _callList.value = gson.fromJson(jsonString, type)
+        }
     }
 }
 
@@ -104,7 +149,9 @@ class MainActivity : ComponentActivity() {
         setContent {
             _0726risuTheme {
                 Surface(
-                    modifier = Modifier.fillMaxSize(),
+                    modifier = Modifier
+                        .fillMaxSize()
+                        .safeDrawingPadding(),
                     color = MaterialTheme.colorScheme.background
                 ) {
                     val navController = rememberNavController()
@@ -117,6 +164,9 @@ class MainActivity : ComponentActivity() {
                                 callList = callList,
                                 navController = navController,
                                 onNavigateToScreen3 = { navController.navigate("screen3") },
+                                onNavigateToEditScreen = { callId ->
+                                    navController.navigate("screen3?callId=$callId")
+                                },
                                 onNavigateToVideoCall = { channelName ->
                                     Log.d("Screen1", "通話開始ボタンクリック。固定チャンネル [$channelName] に接続します。")
                                     navController.navigate("video_call/$channelName")
@@ -134,10 +184,31 @@ class MainActivity : ComponentActivity() {
                                 onNavigateBack = { navController.popBackStack() }
                             )
                         }
-                        composable("screen3") {
+                        composable(
+                            route = "screen3?callId={callId}",
+                            arguments = listOf(navArgument("callId") {
+                                type = NavType.StringType
+                                nullable = true
+                            })
+                        ) { backStackEntry ->
+                            val callId = backStackEntry.arguments?.getString("callId")
                             Screen3(
+                                callId = callId,
+                                callViewModel = callViewModel, // ViewModel を渡す
                                 onAddClick = { name, number, time, daysOfWeek ->
                                     callViewModel.addCallInfo(name, number, time, daysOfWeek)
+                                    daysOfWeek.forEach { dayInt ->
+                                        scheduleNotification(
+                                            context = this@MainActivity,
+                                            time = time,
+                                            dayOfWeek = dayInt,
+                                            title = "$name さんとの通話時間です"
+                                        )
+                                    }
+                                    navController.popBackStack()
+                                },
+                                onUpdateClick = { id, name, number, time, daysOfWeek ->
+                                    callViewModel.updateCallInfo(id, name, number, time, daysOfWeek)
                                     daysOfWeek.forEach { dayInt ->
                                         scheduleNotification(
                                             context = this@MainActivity,
@@ -165,7 +236,8 @@ class MainActivity : ComponentActivity() {
                 }
             }
         }
-    }
+        }
+
 
     //通知、カメラ、マイクの権限を要求する
     private fun askPermissions() {
@@ -296,8 +368,9 @@ class MainActivity : ComponentActivity() {
         navController: NavController,
         modifier: Modifier = Modifier,
         onNavigateToScreen3: () -> Unit,
+        onNavigateToEditScreen: (String) -> Unit,
         onNavigateToVideoCall: (String) -> Unit,
-        onDeleteCall: (UUID) -> Unit
+        onDeleteCall: (String) -> Unit,
 ) {
         val context = LocalContext.current
 
@@ -349,7 +422,8 @@ class MainActivity : ComponentActivity() {
                             items(callList, key = { it.id }) { info ->
                                 CallInfoItem(
                                     info = info,
-                                        onVideoCall = { onNavigateToVideoCall(info.number) },
+                                    onVideoCall = { onNavigateToVideoCall(info.number) },
+                                    onEdit = { onNavigateToEditScreen(info.id) },
                                     onDelete = { onDeleteCall(info.id) }
                                 )
                             }
@@ -422,7 +496,7 @@ fun VideoCallScreen(
             Log.d(TAG, "Local preview started.")
 
             Log.d(TAG, "Joining channel: $channelName")
-            val token = "007eJxTYNjGtWzeH7mJa9fsUl26f8tBPhG7qma++qJTlY9eze+dL3NVgSElxSQx1dgwNSXF0tTEwtzQ0tzSyNgsOS3NNNUk2TApeXfJ0oyGQEaG7sgzDIxQCOIzMxgaGjIwAACwTiCB"
+            val token = "007eJxTYFi3eOEHm/N3eVdvsfh/8mjECgYhhhX7FmV+NV6jrHGGe2aGAkNKikliqrFhakqKpamJhbmhpbmlkbFZclqaaapJsmFS8i2+lRkNgYwM+exSLIwMEAjiMzMYGRkxMAAAiIMesw=="
             val result = engine.joinChannel(token, channelName, null, 0)
             if (result != 0) {
                 val errorMessage = "Failed to join channel. Error code: $result. Check your App ID, token, and channel name."
@@ -475,149 +549,133 @@ fun VideoCallScreen(
     )
 }
 
-@Composable
-fun VideoCallUi(
-    statusText: String,
-    hasRemoteUser: Boolean,
-    onCallEnd: () -> Unit,
-    localSurfaceView: @Composable () -> Unit,
-    remoteSurfaceView: @Composable () -> Unit
+@Composable//登録画面
+fun Screen3(
+    callId: String?,
+    onAddClick: (name: String, number: String, time: String, daysOfWeek: Set<Int>) -> Unit,
+    onUpdateClick: (id: String, name: String, number: String, time: String, daysOfWeek: Set<Int>) -> Unit,
+    navController: NavController,
+    modifier: Modifier = Modifier,
+    callViewModel: CallViewModel
 ) {
-    Box(modifier = Modifier.fillMaxSize()) {
-        if (hasRemoteUser) {
-            Box(modifier = Modifier.fillMaxSize()) {
-                remoteSurfaceView()
+    val isEditing = callId != null
+    var name by remember { mutableStateOf("") }
+    var number by remember { mutableStateOf("") }
+    var time by remember { mutableStateOf("") }
+
+    val daysOfWeekMap = mapOf(
+        "日曜日" to Calendar.SUNDAY, "月曜日" to Calendar.MONDAY, "火曜日" to Calendar.TUESDAY,
+        "水曜日" to Calendar.WEDNESDAY, "木曜日" to Calendar.THURSDAY, "金曜日" to Calendar.FRIDAY,
+        "土曜日" to Calendar.SATURDAY
+    )
+    var selectedDays by remember { mutableStateOf<Set<String>>(emptySet()) }
+    val scrollState = rememberScrollState()
+
+    LaunchedEffect(Unit) {
+        if (isEditing) {
+            callViewModel.getCallInfoById(callId!!)?.let { info ->
+                name = info.name
+                number = info.number
+                time = info.time
+                selectedDays = info.daysOfWeek.mapNotNull { dayInt ->
+                    daysOfWeekMap.entries.find { it.value == dayInt }?.key
+                }.toSet()
             }
         } else {
-            Box(
-                modifier = Modifier.fillMaxSize(),
-                contentAlignment = Alignment.Center
-            ) {
-                Text(statusText, style = MaterialTheme.typography.headlineSmall)
-            }
-        }
-
-        Box(
-            modifier = Modifier
-                .align(Alignment.TopEnd)
-                .padding(16.dp)
-                .width(120.dp)
-                .height(180.dp)
-        ) {
-            localSurfaceView()
-        }
-
-        Button(
-            onClick = onCallEnd,
-            modifier = Modifier
-                .align(Alignment.BottomCenter)
-                .padding(64.dp)
-        ) {
-            Text("通話を終了する")
+            name = ""
+            number = ""
+            time = ""
+            selectedDays = emptySet()
         }
     }
-}
 
-    @Composable//登録画面
-    fun Screen3(
-        onAddClick: (name: String, number: String, time: String, daysOfWeek: Set<Int> ) -> Unit,
-        navController: NavController,
-        modifier: Modifier = Modifier
-    ) {
-        var name by remember { mutableStateOf("") }
-        var number by remember { mutableStateOf("") }
-        var time by remember { mutableStateOf("") }
-        val daysOfWeek = mapOf(
-            "日曜日" to Calendar.SUNDAY, "月曜日" to Calendar.MONDAY, "火曜日" to Calendar.TUESDAY,
-            "水曜日" to Calendar.WEDNESDAY, "木曜日" to Calendar.THURSDAY, "金曜日" to Calendar.FRIDAY,
-            "土曜日" to Calendar.SATURDAY
-        )
-        var selectedDays by remember { mutableStateOf<Set<String>>(emptySet()) }
-        val scrollState = rememberScrollState()
-
-        Scaffold(
-            modifier = modifier.fillMaxSize(),
-            bottomBar = {
-                NavigationBar(
-                    onHomeClick = {
-                        navController.navigate("screen1") {
-                            popUpTo(navController.graph.startDestinationId) { inclusive = true }
-                            launchSingleTop = true
-                        }
+    Scaffold(
+        modifier = modifier.fillMaxSize(),
+        bottomBar = {
+            NavigationBar(
+                onHomeClick = {
+                    navController.navigate("screen1") {
+                        popUpTo(navController.graph.startDestinationId) { inclusive = true }
+                        launchSingleTop = true
+                    }
                     },
-                    onNotificationsClick = { navController.navigate("screen4") },
-                    onSettingsClick = { navController.navigate("screen5") }
-                )
-            }
-        ) { innerPadding ->
-            Column (
-                modifier = Modifier
-                    .fillMaxSize()
-                    .padding(innerPadding)
-                    .padding(16.dp)
-                    .verticalScroll(scrollState),
-                horizontalAlignment = Alignment.CenterHorizontally,
-                verticalArrangement = Arrangement.Top
-            ) {
-                Spacer(modifier = Modifier.height(16.dp))
-                Text(
-                    "通話相手の登録",
-                    fontSize = 24.sp,
-                    style = MaterialTheme.typography.titleLarge,
-                    modifier = Modifier.padding(bottom = 16.dp)
-                )
-                Spacer(modifier = Modifier.height(16.dp))
-                MyTextField(
-                    value = name,
-                    onValueChange = { name = it },
-                    label = "通話相手の名前を入力してください。",
-                    modifier = Modifier.width(320.dp)
-                )
+                onNotificationsClick = { navController.navigate("screen4") },
+                onSettingsClick = { navController.navigate("screen5") }
+            )
+        }
+    ) { innerPadding ->
+        Column (
+            modifier = Modifier
+                .fillMaxSize()
+                .padding(innerPadding)
+                .padding(16.dp)
+                .verticalScroll(scrollState),
+            horizontalAlignment = Alignment.CenterHorizontally,
+            verticalArrangement = Arrangement.Top
+        ) {
+            Spacer(modifier = Modifier.height(16.dp))
+            Text(
+                text = if (isEditing) "通話相手の編集" else "通話相手の登録",
+                fontSize = 24.sp,
+                style = MaterialTheme.typography.titleLarge,
+                modifier = Modifier.padding(bottom = 16.dp)
+            )
+            Spacer(modifier = Modifier.height(16.dp))
+            MyTextField(
+                value = name,
+                onValueChange = { name = it },
+                label = "通話相手の名前を入力してください。",
+                modifier = Modifier.width(320.dp)
+            )
 
-                Spacer(modifier = Modifier.height(16.dp))
-                MyTextField(
-                    value = number,
-                    onValueChange = { number = it },
-                    label = "通話相手と同じルーム ID を\n設定してください。",
-                    modifier = Modifier.width(320.dp)
-                )
+            Spacer(modifier = Modifier.height(16.dp))
+            MyTextField(
+                value = number,
+                onValueChange = { number = it },
+                label = "通話相手と同じルーム ID を\n設定してください。",
+                modifier = Modifier.width(320.dp)
+            )
 
-                Spacer(modifier = Modifier.height(16.dp))
-                MyTextField(
-                    value = time,
-                    onValueChange = { time = it },
-                    label = "時間を入力してください。例:19:00",
-                    modifier = Modifier.width(320.dp)
-                )
+            Spacer(modifier = Modifier.height(16.dp))
+            MyTextField(
+                value = time,
+                onValueChange = { time = it },
+                label = "時間を入力してください。例:19:00",
+                modifier = Modifier.width(320.dp)
+            )
 
-                Spacer(modifier = Modifier.height(16.dp))
-                DayOfWeekSelector(
-                    selectedDays = selectedDays,
-                    onDaySelected = { day ->
-                        selectedDays = if (selectedDays.contains(day)) {
-                            selectedDays - day
+            Spacer(modifier = Modifier.height(16.dp))
+            DayOfWeekSelector(
+                selectedDays = selectedDays,
+                onDaySelected = { day ->
+                    selectedDays = if (selectedDays.contains(day)) {
+                        selectedDays - day
+                    } else {
+                        selectedDays + day
+                    }
+                },
+                daysOfWeek = daysOfWeekMap.keys.toList(),
+                modifier = Modifier.width(320.dp)
+            )
+
+            Spacer(modifier = Modifier.height(24.dp))
+
+            ActionButton(
+                text = if (isEditing) "更新" else "完了",
+                onClick = {
+                    if (name.isNotBlank() && number.isNotBlank() && time.isNotBlank() && selectedDays.isNotEmpty()) {
+                        val daysOfWeekInts = selectedDays.mapNotNull { daysOfWeekMap[it] }.toSet()
+                        if (isEditing) {
+                            onUpdateClick(callId, name, number, time, daysOfWeekInts)
                         } else {
-                            selectedDays + day
-                        }
-                    },
-                    daysOfWeek = daysOfWeek.keys.toList(),
-                    modifier = Modifier.width(320.dp)
-                )
-
-                Spacer(modifier = Modifier.height(24.dp))
-
-                ActionButton(
-                    text = "完了",
-                    onClick = {
-                        if (name.isNotBlank() && number.isNotBlank() && time.isNotBlank() && selectedDays.isNotEmpty()) {
-                            val daysOfWeekInts = selectedDays.mapNotNull { daysOfWeek[it] }.toSet()
                             onAddClick(name, number, time, daysOfWeekInts)
                         }
                     }
-                )
-            }
+                }
+            )
         }
     }
+}
 
 @Composable//通知画面
 fun Screen4(

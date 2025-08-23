@@ -59,4 +59,5 @@ dependencies {
     implementation(libs.androidx.navigation.compose)
     implementation(libs.androidx.lifecycle.viewmodel.compose)
     implementation(libs.agora.rtc.sdk)
+    implementation("com.google.code.gson:gson:2.10.1")
 }

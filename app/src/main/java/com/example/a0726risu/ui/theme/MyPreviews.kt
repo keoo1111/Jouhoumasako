@@ -59,7 +59,12 @@ fun Screen1Preview() {
                     )
                     LazyColumn(verticalArrangement = Arrangement.spacedBy(8.dp)) {
                         items(sampleList) { info ->
-                            CallInfoItem(info = info, onVideoCall = {}, onDelete = {})
+                            CallInfoItem(
+                                info = info,
+                                onVideoCall = {},
+                                onEdit = {},
+                                onDelete = {}
+                            )
                         }
                     }
                 }
@@ -82,8 +87,11 @@ fun Screen1Preview() {
 private fun VideoCallUiPreviewWithRemote() {
     _0726risuTheme {
         VideoCallUi(
-            hasRemoteUser = true, // 相手がいる場合の見た目
-            onCallEnd = {}
+                statusText = "Connected",
+                hasRemoteUser = true,
+                onCallEnd = {},
+                localSurfaceView = { Box(modifier=Modifier.fillMaxSize()){ Text("Local View") } },
+                remoteSurfaceView = { Box(modifier=Modifier.fillMaxSize()){ Text("Remote View") } }
         )
     }
 }
@@ -93,8 +101,11 @@ private fun VideoCallUiPreviewWithRemote() {
 private fun VideoCallUiPreviewWithoutRemote() {
     _0726risuTheme {
         VideoCallUi(
-            hasRemoteUser = false, // 相手がいない場合の見た目
-            onCallEnd = {}
+            statusText = "Waiting for others...",
+            hasRemoteUser = false,
+            onCallEnd = {},
+            localSurfaceView = { Box(modifier=Modifier.fillMaxSize()){ Text("Local View") } },
+            remoteSurfaceView = {}
         )
     }
 }
@@ -243,6 +254,11 @@ private fun CallInfoItemPreview() {
             time = "20:00",
             daysOfWeek = setOf(Calendar.TUESDAY, Calendar.THURSDAY, Calendar.SATURDAY)
         )
-        CallInfoItem(info = sampleInfo, onVideoCall = {}, onDelete = {})
+        CallInfoItem(
+            info = sampleInfo,
+            onVideoCall = {},
+            onEdit = {},
+            onDelete = {}
+        )
     }
 }

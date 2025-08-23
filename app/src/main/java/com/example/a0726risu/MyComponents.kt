@@ -24,6 +24,7 @@ import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.width
+import androidx.compose.material3.ButtonDefaults
 import androidx.compose.material3.Checkbox
 import androidx.compose.material3.ExperimentalMaterial3Api
 import androidx.compose.material3.ExposedDropdownMenuBox
@@ -101,6 +102,7 @@ fun MyTextField(
 fun CallInfoItem(
     info: CallInfo,
     onVideoCall: () -> Unit,
+    onEdit: () -> Unit,
     onDelete: () -> Unit,
     modifier: Modifier = Modifier
 ) {
@@ -132,7 +134,32 @@ fun CallInfoItem(
 
             Text("時間：毎週$daysText ${info.time}", style = MaterialTheme.typography.bodyMedium)
 
-            Spacer(modifier = Modifier.height(8.dp))
+            Spacer(modifier = Modifier.height(16.dp))
+            Row(
+                modifier = Modifier.fillMaxWidth(),
+                horizontalArrangement = Arrangement.End,
+                verticalAlignment = Alignment.CenterVertically
+            ) {
+                Button(onClick = onEdit) {
+                    Text("編集")
+                }
+                Spacer(modifier = Modifier.width(8.dp))
+
+                // 通話開始ボタン
+                Button(onClick = onVideoCall) {
+                    Text("通話を開始する")
+                }
+
+                Spacer(modifier = Modifier.width(8.dp))
+
+                // 削除ボタン
+                Button(
+                    onClick = onDelete,
+                    colors = ButtonDefaults.buttonColors(containerColor = MaterialTheme.colorScheme.error)
+                ) {
+                    Text("削除")
+                }
+            }
         }
     }
 }
@@ -248,6 +275,49 @@ fun VideoCallUi(
         ) {
             Text("自分の映像", color = Color.White)
         }
+        Button(
+            onClick = onCallEnd,
+            modifier = Modifier
+                .align(Alignment.BottomCenter)
+                .padding(64.dp)
+        ) {
+            Text("通話を終了する")
+        }
+    }
+}
+
+@Composable
+fun VideoCallUi(
+    statusText: String,
+    hasRemoteUser: Boolean,
+    onCallEnd: () -> Unit,
+    localSurfaceView: @Composable () -> Unit,
+    remoteSurfaceView: @Composable () -> Unit
+) {
+    Box(modifier = Modifier.fillMaxSize()) {
+        if (hasRemoteUser) {
+            Box(modifier = Modifier.fillMaxSize()) {
+                remoteSurfaceView()
+            }
+        } else {
+            Box(
+                modifier = Modifier.fillMaxSize(),
+                contentAlignment = Alignment.Center
+            ) {
+                Text(statusText, style = MaterialTheme.typography.headlineSmall)
+            }
+        }
+
+        Box(
+            modifier = Modifier
+                .align(Alignment.TopEnd)
+                .padding(16.dp)
+                .width(120.dp)
+                .height(180.dp)
+        ) {
+            localSurfaceView()
+        }
+
         Button(
             onClick = onCallEnd,
             modifier = Modifier
