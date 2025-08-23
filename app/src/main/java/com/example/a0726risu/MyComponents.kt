@@ -250,44 +250,6 @@ fun NotificationItem(info: NotificationInfo, modifier: Modifier = Modifier) {
 
 @Composable
 fun VideoCallUi(
-    hasRemoteUser: Boolean,
-    onCallEnd: () -> Unit
-) {
-    Box(modifier = Modifier.fillMaxSize()) {
-        if (hasRemoteUser) {
-            Box(
-                modifier = Modifier
-                    .fillMaxSize()
-                    .background(Color.Gray),
-                contentAlignment = Alignment.Center
-            ) {
-                Text("相手の映像", color = Color.White)
-            }
-        }
-        Box(
-            modifier = Modifier
-                .align(Alignment.TopEnd)
-                .padding(16.dp)
-                .width(120.dp)
-                .height(180.dp)
-                .background(Color.DarkGray),
-            contentAlignment = Alignment.Center
-        ) {
-            Text("自分の映像", color = Color.White)
-        }
-        Button(
-            onClick = onCallEnd,
-            modifier = Modifier
-                .align(Alignment.BottomCenter)
-                .padding(64.dp)
-        ) {
-            Text("通話を終了する")
-        }
-    }
-}
-
-@Composable
-fun VideoCallUi(
     statusText: String,
     hasRemoteUser: Boolean,
     onCallEnd: () -> Unit,
@@ -296,18 +258,12 @@ fun VideoCallUi(
 ) {
     Box(modifier = Modifier.fillMaxSize()) {
         if (hasRemoteUser) {
-            Box(modifier = Modifier.fillMaxSize()) {
-                remoteSurfaceView()
-            }
+            Box(modifier = Modifier.fillMaxSize()) { remoteSurfaceView() }
         } else {
-            Box(
-                modifier = Modifier.fillMaxSize(),
-                contentAlignment = Alignment.Center
-            ) {
+            Box(modifier = Modifier.fillMaxSize(), contentAlignment = Alignment.Center) {
                 Text(statusText, style = MaterialTheme.typography.headlineSmall)
             }
         }
-
         Box(
             modifier = Modifier
                 .align(Alignment.TopEnd)
@@ -317,7 +273,6 @@ fun VideoCallUi(
         ) {
             localSurfaceView()
         }
-
         Button(
             onClick = onCallEnd,
             modifier = Modifier

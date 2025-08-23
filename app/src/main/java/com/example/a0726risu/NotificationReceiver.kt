@@ -38,39 +38,49 @@ object NotificationRepository {
 const val CHANNEL_ID = "call_notification_channel"
 const val EXTRA_TITLE = "extra_title"
 const val EXTRA_MESSAGE = "extra_message"
+const val EXTRA_CHANNEL_NAME = "extra_channel_name"
+const val EXTRA_TOKEN = "extra_token"
 
 class NotificationReceiver : BroadcastReceiver() {
-
     override fun onReceive(context: Context, intent: Intent) {
         val title = intent.getStringExtra(EXTRA_TITLE) ?: "時間です！"
         val message = intent.getStringExtra(EXTRA_MESSAGE) ?: "通話の準備をしましょう。"
+        val channelName = intent.getStringExtra(EXTRA_CHANNEL_NAME) ?: return
+        val token = intent.getStringExtra(EXTRA_TOKEN) ?: ""
+
+        // 通知履歴に保存
         NotificationRepository.addNotification(title, message)
-        val notificationIntent = Intent(context, MainActivity::class.java).apply {
-            flags = Intent.FLAG_ACTIVITY_NEW_TASK or Intent.FLAG_ACTIVITY_CLEAR_TASK
+
+        // 通話画面を直接起動するためのインテントを作成
+        val fullScreenIntent = Intent(context, VideoCallActivity::class.java).apply {
+            flags = Intent.FLAG_ACTIVITY_NEW_TASK
+            putExtra("CHANNEL_NAME", channelName)
+            putExtra("TOKEN", token)
         }
-        val pendingIntentFlag = PendingIntent.FLAG_UPDATE_CURRENT or PendingIntent.FLAG_IMMUTABLE
-        val pendingIntent: PendingIntent = PendingIntent.getActivity(
+
+        // PendingIntent を作成
+        val fullScreenPendingIntent = PendingIntent.getActivity(
             context,
-            0,
-            notificationIntent,
-            pendingIntentFlag
+            UUID.randomUUID().hashCode(),
+            fullScreenIntent,
+            PendingIntent.FLAG_UPDATE_CURRENT or PendingIntent.FLAG_IMMUTABLE
         )
-        val notification = NotificationCompat.Builder(context, CHANNEL_ID)
-            .setSmallIcon(R.drawable.ic_launcher_foreground)
+
+        // 着信スタイルの通知を作成
+        val notificationBuilder = NotificationCompat.Builder(context, CHANNEL_ID)
+            .setSmallIcon(R.drawable.ic_launcher_foreground) // TODO: 通話アイコンに変更推奨
             .setContentTitle(title)
             .setContentText(message)
             .setPriority(NotificationCompat.PRIORITY_HIGH)
-            .setContentIntent(pendingIntent)
-            .setAutoCancel(true)
-            .build()
-        if (ActivityCompat.checkSelfPermission(
-                context,
-                Manifest.permission.POST_NOTIFICATIONS
-            ) != PackageManager.PERMISSION_GRANTED
-        ) {
+            .setCategory(NotificationCompat.CATEGORY_CALL) // 通話カテゴリに設定
+            .setFullScreenIntent(fullScreenPendingIntent, true) // この通知をタップせずに自動で画面を起動
+
+        // 権限をチェックして通知を実行
+        if (ActivityCompat.checkSelfPermission(context, Manifest.permission.POST_NOTIFICATIONS) != PackageManager.PERMISSION_GRANTED) {
             return
         }
+
         val manager = context.getSystemService(Context.NOTIFICATION_SERVICE) as NotificationManager
-        manager.notify(System.currentTimeMillis().toInt(), notification)
+        manager.notify(System.currentTimeMillis().toInt(), notificationBuilder.build())
     }
 }

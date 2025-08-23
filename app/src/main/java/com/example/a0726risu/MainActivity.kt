@@ -13,7 +13,6 @@ import android.net.Uri
 import android.os.Build
 import android.os.Bundle
 import android.provider.Settings
-import android.util.Log
 import android.widget.Toast
 import androidx.activity.ComponentActivity
 import androidx.activity.compose.setContent
@@ -57,22 +56,15 @@ import androidx.navigation.NavController
 import java.util.Calendar
 import java.util.Locale
 import java.text.SimpleDateFormat
-import android.view.SurfaceView
 import androidx.compose.foundation.layout.safeDrawingPadding
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.verticalScroll
-import androidx.compose.runtime.DisposableEffect
 import androidx.compose.ui.platform.LocalContext
-import androidx.compose.ui.viewinterop.AndroidView
 import androidx.lifecycle.AndroidViewModel
 import androidx.navigation.NavType
 import androidx.navigation.navArgument
 import com.google.gson.Gson
 import com.google.gson.reflect.TypeToken
-import io.agora.rtc2.IRtcEngineEventHandler
-import io.agora.rtc2.RtcEngine
-import io.agora.rtc2.RtcEngineConfig
-import io.agora.rtc2.video.VideoCanvas
 import androidx.compose.runtime.LaunchedEffect
 
 data class CallInfo(
@@ -140,7 +132,6 @@ class CallViewModel(application: Application) : AndroidViewModel(application) {
 }
 
 class MainActivity : ComponentActivity() {
-
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
         enableEdgeToEdge()
@@ -168,20 +159,13 @@ class MainActivity : ComponentActivity() {
                                     navController.navigate("screen3?callId=$callId")
                                 },
                                 onNavigateToVideoCall = { channelName ->
-                                    Log.d("Screen1", "通話開始ボタンクリック。固定チャンネル [$channelName] に接続します。")
-                                    navController.navigate("video_call/$channelName")
+                                    val intent = Intent(this@MainActivity, VideoCallActivity::class.java).apply {
+                                        putExtra("CHANNEL_NAME", channelName)
+                                        putExtra("TOKEN", "007eJxTYFi3eOEHm/N3eVdvsfh/8mjECgYhhhX7FmV+NV6jrHGGe2aGAkNKikliqrFhakqKpamJhbmhpbmlkbFZclqaaapJsmFS8i2+lRkNgYwM+exSLIwMEAjiMzMYGRkxMAAAiIMesw==")
+                                    }
+                                    startActivity(intent)
                                 },
                                 onDeleteCall = { id -> callViewModel.deleteCallInfo(id) }
-                            )
-                        }
-                        composable(
-                            route = "video_call/{channelName}",
-                            arguments = listOf(navArgument("channelName") { type = NavType.StringType })
-                        ) { backStackEntry ->
-                            val channelName = backStackEntry.arguments?.getString("channelName") ?: ""
-                            VideoCallScreen(
-                                channelName = channelName,
-                                onNavigateBack = { navController.popBackStack() }
                             )
                         }
                         composable(
@@ -198,11 +182,12 @@ class MainActivity : ComponentActivity() {
                                 onAddClick = { name, number, time, daysOfWeek ->
                                     callViewModel.addCallInfo(name, number, time, daysOfWeek)
                                     daysOfWeek.forEach { dayInt ->
-                                        scheduleNotification(
+                                        scheduleAutoCall(
                                             context = this@MainActivity,
                                             time = time,
                                             dayOfWeek = dayInt,
-                                            title = "$name さんとの通話時間です"
+                                            title = "$name さんとの通話時間です",
+                                            channelName = number
                                         )
                                     }
                                     navController.popBackStack()
@@ -210,11 +195,12 @@ class MainActivity : ComponentActivity() {
                                 onUpdateClick = { id, name, number, time, daysOfWeek ->
                                     callViewModel.updateCallInfo(id, name, number, time, daysOfWeek)
                                     daysOfWeek.forEach { dayInt ->
-                                        scheduleNotification(
+                                        scheduleAutoCall(
                                             context = this@MainActivity,
                                             time = time,
                                             dayOfWeek = dayInt,
-                                            title = "$name さんとの通話時間です"
+                                            title = "$name さんとの通話時間です",
+                                            channelName = number
                                         )
                                     }
                                     navController.popBackStack()
@@ -236,7 +222,7 @@ class MainActivity : ComponentActivity() {
                 }
             }
         }
-        }
+    }
 
 
     //通知、カメラ、マイクの権限を要求する
@@ -297,15 +283,19 @@ class MainActivity : ComponentActivity() {
     }
 
     //通知をスケジュールする
-    private fun scheduleNotification(context: Context, time: String, dayOfWeek: Int, title: String) {
+    private fun scheduleAutoCall(context: Context, time: String, dayOfWeek: Int, title: String, channelName: String) {
         val alarmManager = context.getSystemService(Context.ALARM_SERVICE) as AlarmManager
         val intent = Intent(context, NotificationReceiver::class.java).apply {
             putExtra(EXTRA_TITLE, title)
-            putExtra(EXTRA_MESSAGE, "通話を開始しましょう！")
+            putExtra(EXTRA_MESSAGE, "時間になりました。通話を開始します。")
+            putExtra(EXTRA_CHANNEL_NAME, channelName)
+            putExtra(EXTRA_TOKEN, "007eJxTYFi3eOEHm/N3eVdvsfh/8mjECgYhhhX7FmV+NV6jrHGGe2aGAkNKikliqrFhakqKpamJhbmhpbmlkbFZclqaaapJsmFS8i2+lRkNgYwM+exSLIwMEAjiMzMYGRkxMAAAiIMesw==") // TODO: トークンはサーバーで生成推奨
         }
+
+        val requestCode = (channelName + dayOfWeek + time).hashCode()
         val pendingIntent = PendingIntent.getBroadcast(
             context,
-            UUID.randomUUID().hashCode(),
+            requestCode,
             intent,
             PendingIntent.FLAG_IMMUTABLE or PendingIntent.FLAG_UPDATE_CURRENT
         )
@@ -445,111 +435,6 @@ class MainActivity : ComponentActivity() {
 
 private const val YOUR_APP_ID = "dd4ae31edd954871979236cff5e4c1bc"
 private const val TAG = "VideoCallScreen"
-
-@Composable
-fun VideoCallScreen(
-    channelName: String,
-    onNavigateBack: () -> Unit
-) {
-    val context = LocalContext.current
-    var remoteUid by remember { mutableStateOf<Int?>(null) }
-    val rtcEngine = remember { mutableStateOf<RtcEngine?>(null) }
-    var statusText by remember { mutableStateOf("Initializing...") }
-
-    DisposableEffect(Unit) {
-        var engine: RtcEngine? = null
-        try {
-            val eventHandler = object : IRtcEngineEventHandler() {
-                override fun onJoinChannelSuccess(channel: String, uid: Int, elapsed: Int) {
-                    Log.d(TAG, "Successfully joined channel: $channel with uid: $uid")
-                    statusText = "Connected. Waiting for others..."
-                }
-
-                override fun onUserJoined(uid: Int, elapsed: Int) {
-                    Log.d(TAG, "Remote user joined: $uid")
-                    statusText = "Remote user connected."
-                    remoteUid = uid
-                }
-
-                override fun onUserOffline(uid: Int, reason: Int) {
-                    Log.d(TAG, "Remote user offline: $uid, reason: $reason")
-                    statusText = "Remote user left."
-                    remoteUid = null
-                }
-
-                override fun onError(err: Int) {
-                    Log.e(TAG, "Agora RTC Error: $err")
-                    statusText = "Error occurred: $err"
-                }
-            }
-
-            Log.d(TAG, "Initializing Agora RtcEngine...")
-            val config = RtcEngineConfig()
-            config.mContext = context
-            config.mAppId = YOUR_APP_ID
-            config.mEventHandler = eventHandler
-            engine = RtcEngine.create(config)
-            rtcEngine.value = engine
-
-            engine.enableVideo()
-            Log.d(TAG, "Video enabled.")
-
-            engine.startPreview()
-            Log.d(TAG, "Local preview started.")
-
-            Log.d(TAG, "Joining channel: $channelName")
-            val token = "007eJxTYFi3eOEHm/N3eVdvsfh/8mjECgYhhhX7FmV+NV6jrHGGe2aGAkNKikliqrFhakqKpamJhbmhpbmlkbFZclqaaapJsmFS8i2+lRkNgYwM+exSLIwMEAjiMzMYGRkxMAAAiIMesw=="
-            val result = engine.joinChannel(token, channelName, null, 0)
-            if (result != 0) {
-                val errorMessage = "Failed to join channel. Error code: $result. Check your App ID, token, and channel name."
-                Log.e(TAG, errorMessage)
-                statusText = errorMessage
-            } else {
-                statusText = "Joining channel..."
-            }
-
-        } catch (e: Exception) {
-            Log.e(TAG, "Error during Agora initialization", e)
-            statusText = "Initialization failed: ${e.message}"
-        }
-
-        onDispose {
-            Log.d(TAG, "Disposing VideoCallScreen. Leaving channel.")
-            engine?.apply {
-                stopPreview()
-                leaveChannel()
-            }
-            RtcEngine.destroy()
-            Log.d(TAG, "RtcEngine destroyed.")
-        }
-    }
-
-    VideoCallUi(
-        statusText = statusText,
-        hasRemoteUser = remoteUid != null,
-        onCallEnd = onNavigateBack,
-        localSurfaceView = {
-            AndroidView(
-                factory = {
-                    SurfaceView(it)
-                },
-                update = { view ->
-                    rtcEngine.value?.setupLocalVideo(VideoCanvas(view, VideoCanvas.RENDER_MODE_FIT, 0))
-                }
-            )
-        },
-        remoteSurfaceView = {
-            remoteUid?.let { uid ->
-                AndroidView(
-                    factory = { SurfaceView(it) },
-                    update = { view ->
-                        rtcEngine.value?.setupRemoteVideo(VideoCanvas(view, VideoCanvas.RENDER_MODE_FIT, uid))
-                    }
-                )
-            }
-        }
-    )
-}
 
 @Composable//登録画面
 fun Screen3(
