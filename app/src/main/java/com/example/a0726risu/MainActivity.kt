@@ -321,10 +321,6 @@ class MainActivity : ComponentActivity() {
                 }
             }
 
-            if (calendar.timeInMillis < System.currentTimeMillis()) {
-                calendar.add(Calendar.DAY_OF_YEAR, 1)
-            }
-
             if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.S) {
                 if (alarmManager.canScheduleExactAlarms()) {
                 alarmManager.setExactAndAllowWhileIdle(
