@@ -243,22 +243,3 @@ private fun Screen5Preview() {
         }
     }
 }
-
-@Preview(showBackground = true)
-@Composable
-private fun CallInfoItemPreview() {
-    _0726risuTheme {
-        val sampleInfo = CallInfo(
-            name = "プレビューユーザー",
-            number = "000-0000-0000",
-            time = "20:00",
-            daysOfWeek = setOf(Calendar.TUESDAY, Calendar.THURSDAY, Calendar.SATURDAY)
-        )
-        CallInfoItem(
-            info = sampleInfo,
-            onVideoCall = {},
-            onEdit = {},
-            onDelete = {}
-        )
-    }
-}
