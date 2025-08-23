@@ -397,6 +397,7 @@ class MainActivity : ComponentActivity() {
                 Column(
                     modifier = Modifier
                         .fillMaxSize()
+                        .padding(innerPadding)
                         .padding(16.dp)
                 ) {
                     Text(
@@ -435,6 +436,7 @@ class MainActivity : ComponentActivity() {
                     onClick = onNavigateToScreen3,
                     modifier = Modifier
                         .align(Alignment.TopEnd)
+                        .padding(innerPadding)
                         .padding(top = 8.dp, end = 16.dp)
                 )
             }
