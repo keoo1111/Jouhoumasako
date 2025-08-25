@@ -309,6 +309,7 @@ class MainActivity : ComponentActivity() {
                         set(Calendar.HOUR_OF_DAY, cal.get(Calendar.HOUR_OF_DAY))
                         set(Calendar.MINUTE, cal.get(Calendar.MINUTE))
                         set(Calendar.SECOND, 0)
+                        set(Calendar.MILLISECOND, 0)
                     }
                 } catch (e: Exception) {
                     e.printStackTrace()

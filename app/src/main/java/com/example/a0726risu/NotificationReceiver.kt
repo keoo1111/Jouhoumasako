@@ -6,15 +6,19 @@ import android.app.PendingIntent
 import android.content.BroadcastReceiver
 import android.content.Context
 import android.content.Intent
+import android.content.SharedPreferences
 import android.content.pm.PackageManager
 import android.icu.text.SimpleDateFormat
 import androidx.core.app.ActivityCompat
 import androidx.core.app.NotificationCompat
+import com.google.gson.Gson
+import com.google.gson.reflect.TypeToken
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
 import java.util.Date
 import java.util.Locale
 import java.util.UUID
+import androidx.core.content.edit
 
 data class NotificationInfo(
     val id: UUID = UUID.randomUUID(),
@@ -27,11 +31,39 @@ object NotificationRepository {
     private val _notifications = MutableStateFlow<List<NotificationInfo>>(emptyList())
     val notifications: StateFlow<List<NotificationInfo>> = _notifications
 
+    private lateinit var sharedPreferences: SharedPreferences
+    private val gson = Gson()
+
+    fun init(context: Context) {
+        sharedPreferences = context.getSharedPreferences("notification_prefs", Context.MODE_PRIVATE)
+        loadNotifications()
+    }
+
     fun addNotification(title: String, message: String) {
         val sdf = SimpleDateFormat("yyyy/MM/dd HH:mm", Locale.getDefault())
         val timestamp = sdf.format(Date())
         val newNotification = NotificationInfo(title = title, message = message, timestamp = timestamp)
         _notifications.value = listOf(newNotification) + _notifications.value
+        saveNotifications() // 保存処理を呼び出し
+    }
+
+    private fun saveNotifications() {
+        if (::sharedPreferences.isInitialized) {
+            val jsonString = gson.toJson(_notifications.value)
+            sharedPreferences.edit {
+                putString("notification_list_key", jsonString)
+            }
+        }
+    }
+
+    private fun loadNotifications() {
+        if (::sharedPreferences.isInitialized) {
+            val jsonString = sharedPreferences.getString("notification_list_key", null)
+            if (jsonString != null) {
+                val type = object : TypeToken<List<NotificationInfo>>() {}.type
+                _notifications.value = gson.fromJson(jsonString, type)
+            }
+        }
     }
 }
 
@@ -48,10 +80,8 @@ class NotificationReceiver : BroadcastReceiver() {
         val channelName = intent.getStringExtra(EXTRA_CHANNEL_NAME) ?: return
         val token = intent.getStringExtra(EXTRA_TOKEN) ?: ""
 
-        // 通知履歴に保存
         NotificationRepository.addNotification(title, message)
 
-        // 通話画面を直接起動するためのインテントを作成
         val fullScreenIntent = Intent(context, VideoCallActivity::class.java).apply {
             flags = Intent.FLAG_ACTIVITY_NEW_TASK
             putExtra("CHANNEL_NAME", channelName)
@@ -66,16 +96,14 @@ class NotificationReceiver : BroadcastReceiver() {
             PendingIntent.FLAG_UPDATE_CURRENT or PendingIntent.FLAG_IMMUTABLE
         )
 
-        // 着信スタイルの通知を作成
         val notificationBuilder = NotificationCompat.Builder(context, CHANNEL_ID)
             .setSmallIcon(R.drawable.ic_launcher_foreground) // TODO: 通話アイコンに変更推奨
             .setContentTitle(title)
             .setContentText(message)
             .setPriority(NotificationCompat.PRIORITY_HIGH)
-            .setCategory(NotificationCompat.CATEGORY_CALL) // 通話カテゴリに設定
-            .setFullScreenIntent(fullScreenPendingIntent, true) // この通知をタップせずに自動で画面を起動
+            .setCategory(NotificationCompat.CATEGORY_CALL)
+            .setFullScreenIntent(fullScreenPendingIntent, true)
 
-        // 権限をチェックして通知を実行
         if (ActivityCompat.checkSelfPermission(context, Manifest.permission.POST_NOTIFICATIONS) != PackageManager.PERMISSION_GRANTED) {
             return
         }
