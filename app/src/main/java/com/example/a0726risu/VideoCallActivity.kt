@@ -97,7 +97,7 @@ fun VideoCallScreenContent(
 
             val config = RtcEngineConfig()
             config.mContext = context
-            config.mAppId = YOUR_APP_ID_VC
+            config.mAppId = AppConstants.AGORA_APP_ID
             config.mEventHandler = eventHandler
             engine = RtcEngine.create(config)
             rtcEngine.value = engine

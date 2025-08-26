@@ -161,7 +161,7 @@ class MainActivity : ComponentActivity() {
                                 onNavigateToVideoCall = { channelName ->
                                     val intent = Intent(this@MainActivity, VideoCallActivity::class.java).apply {
                                         putExtra("CHANNEL_NAME", channelName)
-                                        putExtra("TOKEN", "007eJxTYFi3eOEHm/N3eVdvsfh/8mjECgYhhhX7FmV+NV6jrHGGe2aGAkNKikliqrFhakqKpamJhbmhpbmlkbFZclqaaapJsmFS8i2+lRkNgYwM+exSLIwMEAjiMzMYGRkxMAAAiIMesw==")
+                                        putExtra("TOKEN", AppConstants.AGORA_TOKEN)
                                     }
                                     startActivity(intent)
                                 },
