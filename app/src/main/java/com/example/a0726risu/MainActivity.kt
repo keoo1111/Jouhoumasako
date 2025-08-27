@@ -2,7 +2,6 @@ package com.example.a0726risu
 
 import android.Manifest
 import android.app.AlarmManager
-import android.app.Application
 import android.app.NotificationChannel
 import android.app.NotificationManager
 import android.app.PendingIntent
@@ -46,8 +45,6 @@ import androidx.compose.runtime.setValue
 import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.unit.sp
 import androidx.lifecycle.viewmodel.compose.viewModel
-import kotlinx.coroutines.flow.MutableStateFlow
-import kotlinx.coroutines.flow.StateFlow
 import java.util.UUID
 import androidx.compose.foundation.lazy.items
 import androidx.compose.runtime.collectAsState
@@ -59,13 +56,13 @@ import java.text.SimpleDateFormat
 import androidx.compose.foundation.layout.safeDrawingPadding
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.verticalScroll
-import androidx.compose.ui.platform.LocalContext
-import androidx.lifecycle.AndroidViewModel
 import androidx.navigation.NavType
 import androidx.navigation.navArgument
-import com.google.gson.Gson
-import com.google.gson.reflect.TypeToken
 import androidx.compose.runtime.LaunchedEffect
+import androidx.lifecycle.lifecycleScope
+import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.launch
+import kotlinx.coroutines.withContext
 
 data class CallInfo(
     val id: String = UUID.randomUUID().toString(),
@@ -74,62 +71,6 @@ data class CallInfo(
     val time: String,
     val daysOfWeek: Set<Int>
 )
-
-class CallViewModel(application: Application) : AndroidViewModel(application) {
-
-    private val sharedPreferences =
-        application.getSharedPreferences("call_prefs", Context.MODE_PRIVATE)
-    private val gson = Gson()
-
-    private val _callList = MutableStateFlow<List<CallInfo>>(emptyList())
-    val callList: StateFlow<List<CallInfo>> = _callList
-
-    val notifications: StateFlow<List<NotificationInfo>> = NotificationRepository.notifications
-
-    init {
-        loadCallList()
-    }
-
-    fun addCallInfo(name: String, number: String, time: String, daysOfWeek: Set<Int>) {
-        val newInfo = CallInfo(name = name, number = number, time = time, daysOfWeek = daysOfWeek)
-        _callList.value += newInfo
-        saveCallList()
-    }
-
-    fun deleteCallInfo(id: String) {
-        _callList.value = _callList.value.filterNot { it.id == id }
-        saveCallList()
-    }
-
-    fun getCallInfoById(id: String): CallInfo? {
-        return _callList.value.find { it.id == id }
-    }
-
-    fun updateCallInfo(id: String, name: String, number: String, time: String, daysOfWeek: Set<Int>) {
-        val updatedList = _callList.value.map { info ->
-            if (info.id == id) {
-                info.copy(name = name, number = number, time = time, daysOfWeek = daysOfWeek)
-            } else {
-                info
-            }
-        }
-        _callList.value = updatedList
-        saveCallList()
-    }
-
-    private fun saveCallList() {
-        val jsonString = gson.toJson(_callList.value)
-        sharedPreferences.edit().putString("call_list_key", jsonString).apply()
-    }
-
-    private fun loadCallList() {
-        val jsonString = sharedPreferences.getString("call_list_key", null)
-        if (jsonString != null) {
-            val type = object : TypeToken<List<CallInfo>>() {}.type
-            _callList.value = gson.fromJson(jsonString, type)
-        }
-    }
-}
 
 class MainActivity : ComponentActivity() {
     override fun onCreate(savedInstanceState: Bundle?) {
@@ -159,7 +100,10 @@ class MainActivity : ComponentActivity() {
                                     navController.navigate("screen3?callId=$callId")
                                 },
                                 onNavigateToVideoCall = { channelName ->
-                                    val intent = Intent(this@MainActivity, VideoCallActivity::class.java).apply {
+                                    val intent = Intent(
+                                        this@MainActivity,
+                                        VideoCallActivity::class.java
+                                    ).apply {
                                         putExtra("CHANNEL_NAME", channelName)
                                         putExtra("TOKEN", AppConstants.AGORA_TOKEN)
                                     }
@@ -178,32 +122,55 @@ class MainActivity : ComponentActivity() {
                             val callId = backStackEntry.arguments?.getString("callId")
                             Screen3(
                                 callId = callId,
-                                callViewModel = callViewModel, // ViewModel を渡す
+                                callViewModel = callViewModel,
                                 onAddClick = { name, number, time, daysOfWeek ->
-                                    callViewModel.addCallInfo(name, number, time, daysOfWeek)
-                                    daysOfWeek.forEach { dayInt ->
-                                        scheduleAutoCall(
-                                            context = this@MainActivity,
-                                            time = time,
-                                            dayOfWeek = dayInt,
-                                            title = "$name さんとの通話時間です",
-                                            channelName = number
-                                        )
+                                    lifecycleScope.launch {
+                                        withContext(Dispatchers.IO) {
+                                            callViewModel.addCallInfo(
+                                                name,
+                                                number,
+                                                time,
+                                                daysOfWeek
+                                            )
+                                            daysOfWeek.forEach { dayInt ->
+                                                scheduleAutoCall(
+                                                    context = this@MainActivity,
+                                                    time = time,
+                                                    dayOfWeek = dayInt,
+                                                    title = "$name さんとの通話時間です",
+                                                    channelName = number
+                                                )
+                                            }
+                                        }
+                                        navController.popBackStack()
                                     }
-                                    navController.popBackStack()
                                 },
                                 onUpdateClick = { id, name, number, time, daysOfWeek ->
-                                    callViewModel.updateCallInfo(id, name, number, time, daysOfWeek)
-                                    daysOfWeek.forEach { dayInt ->
-                                        scheduleAutoCall(
-                                            context = this@MainActivity,
-                                            time = time,
-                                            dayOfWeek = dayInt,
-                                            title = "$name さんとの通話時間です",
-                                            channelName = number
-                                        )
+                                    lifecycleScope.launch {
+                                        withContext(Dispatchers.IO) {
+                                            val oldCallInfo = callViewModel.getCallInfoById(id)
+                                            if (oldCallInfo != null) {
+                                                cancelAlarmsForCall(oldCallInfo)
+                                            }
+                                            callViewModel.updateCallInfo(
+                                                id,
+                                                name,
+                                                number,
+                                                time,
+                                                daysOfWeek
+                                            )
+                                            daysOfWeek.forEach { dayInt ->
+                                                scheduleAutoCall(
+                                                    context = this@MainActivity,
+                                                    time = time,
+                                                    dayOfWeek = dayInt,
+                                                    title = "$name さんとの通話時間です",
+                                                    channelName = number
+                                                )
+                                            }
+                                        }
+                                        navController.popBackStack()
                                     }
-                                    navController.popBackStack()
                                 },
                                 navController = navController
                             )
@@ -236,7 +203,11 @@ class MainActivity : ComponentActivity() {
         )
 
         permissions.forEach { permission ->
-            if (ContextCompat.checkSelfPermission(this, permission) != PackageManager.PERMISSION_GRANTED) {
+            if (ContextCompat.checkSelfPermission(
+                    this,
+                    permission
+                ) != PackageManager.PERMISSION_GRANTED
+            ) {
                 permissionsToRequest.add(permission)
             }
         }
@@ -261,7 +232,8 @@ class MainActivity : ComponentActivity() {
                 }
             }
 
-            val message = "${deniedPermissionNames.joinToString("、")} の権限が許可されていません。設定から許可してください。"
+            val message =
+                "${deniedPermissionNames.joinToString("、")} の権限が許可されていません。設定から許可してください。"
             Toast.makeText(this, message, Toast.LENGTH_LONG).show()
         }
     }
@@ -282,14 +254,46 @@ class MainActivity : ComponentActivity() {
         }
     }
 
+    private fun cancelAlarmsForCall(callInfo: CallInfo) {
+        val alarmManager = getSystemService(Context.ALARM_SERVICE) as AlarmManager
+        val intent = Intent(this, NotificationReceiver::class.java)
+
+        callInfo.daysOfWeek.forEach { dayOfWeek ->
+            val requestCode = (callInfo.number + dayOfWeek + callInfo.time).hashCode()
+            val pendingIntent = PendingIntent.getBroadcast(
+                this,
+                requestCode,
+                intent,
+                PendingIntent.FLAG_IMMUTABLE or PendingIntent.FLAG_NO_CREATE
+            )
+            if (pendingIntent != null) {
+                alarmManager.cancel(pendingIntent)
+                pendingIntent.cancel()
+                lifecycleScope.launch(Dispatchers.Main) {
+                    Toast.makeText(
+                        this@MainActivity,
+                        "${callInfo.time}の古い予約をキャンセルしました",
+                        Toast.LENGTH_SHORT
+                    ).show()
+                }
+            }
+        }
+    }
+
     //通知をスケジュールする
-    private fun scheduleAutoCall(context: Context, time: String, dayOfWeek: Int, title: String, channelName: String) {
+    private fun scheduleAutoCall(
+        context: Context,
+        time: String,
+        dayOfWeek: Int,
+        title: String,
+        channelName: String
+    ) {
         val alarmManager = context.getSystemService(Context.ALARM_SERVICE) as AlarmManager
         val intent = Intent(context, NotificationReceiver::class.java).apply {
             putExtra(EXTRA_TITLE, title)
             putExtra(EXTRA_MESSAGE, "時間になりました。通話を開始します。")
             putExtra(EXTRA_CHANNEL_NAME, channelName)
-            putExtra(EXTRA_TOKEN, "007eJxTYFi3eOEHm/N3eVdvsfh/8mjECgYhhhX7FmV+NV6jrHGGe2aGAkNKikliqrFhakqKpamJhbmhpbmlkbFZclqaaapJsmFS8i2+lRkNgYwM+exSLIwMEAjiMzMYGRkxMAAAiIMesw==") // TODO: トークンはサーバーで生成推奨
+            putExtra(EXTRA_TOKEN, AppConstants.AGORA_TOKEN)
         }
 
         val requestCode = (channelName + dayOfWeek + time).hashCode()
@@ -299,57 +303,73 @@ class MainActivity : ComponentActivity() {
             intent,
             PendingIntent.FLAG_IMMUTABLE or PendingIntent.FLAG_UPDATE_CURRENT
         )
-            val sdf = SimpleDateFormat("HH:mm", Locale.getDefault())
-            val calendar = Calendar.getInstance().apply {
-                try {
-                    val date = sdf.parse(time)
-                    date?.let {
-                        val cal = Calendar.getInstance()
-                        cal.time = it
-                        set(Calendar.HOUR_OF_DAY, cal.get(Calendar.HOUR_OF_DAY))
-                        set(Calendar.MINUTE, cal.get(Calendar.MINUTE))
-                        set(Calendar.SECOND, 0)
-                        set(Calendar.MILLISECOND, 0)
-                    }
-                } catch (e: Exception) {
-                    e.printStackTrace()
-                    Toast.makeText(context, "時間の形式が正しくありません (HH:mm)", Toast.LENGTH_SHORT).show()
-                    return
-                }
-                set(Calendar.DAY_OF_WEEK, dayOfWeek)
-                if (timeInMillis < System.currentTimeMillis()) {
-                    add(Calendar.WEEK_OF_YEAR, 1)
-                }
-            }
 
-            if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.S) {
-                if (alarmManager.canScheduleExactAlarms()) {
+        val sdf = SimpleDateFormat("HH:mm", Locale.getDefault())
+        val calendar = Calendar.getInstance().apply {
+            try {
+                val date = sdf.parse(time)
+                date?.let {
+                    val cal = Calendar.getInstance()
+                    cal.time = it
+                    set(Calendar.HOUR_OF_DAY, cal.get(Calendar.HOUR_OF_DAY))
+                    set(Calendar.MINUTE, cal.get(Calendar.MINUTE))
+                    set(Calendar.SECOND, 0)
+                    set(Calendar.MILLISECOND, 0)
+                }
+            } catch (e: Exception) {
+                e.printStackTrace()
+                lifecycleScope.launch(Dispatchers.Main) {
+                    Toast.makeText(
+                        context,
+                        "時間の形式が正しくありません (HH:mm)",
+                        Toast.LENGTH_SHORT
+                    ).show()
+                }
+                return
+            }
+            set(Calendar.DAY_OF_WEEK, dayOfWeek)
+            if (timeInMillis < System.currentTimeMillis()) {
+                add(Calendar.WEEK_OF_YEAR, 1)
+            }
+        }
+
+        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.S) {
+            if (alarmManager.canScheduleExactAlarms()) {
                 alarmManager.setExactAndAllowWhileIdle(
                     AlarmManager.RTC_WAKEUP,
                     calendar.timeInMillis,
                     pendingIntent
                 )
-                Toast.makeText(this, "通知を $time にセットしました", Toast.LENGTH_LONG).show()
-            } else {
-                Toast.makeText(this, "アラームの権限がありません。設定画面に移動します。", Toast.LENGTH_LONG).show()
-                    Intent().also {
-                        it.action = Settings.ACTION_REQUEST_SCHEDULE_EXACT_ALARM
-                        it.data = Uri.fromParts("package", packageName, null)
-                        startActivity(it)
-                    }
+                lifecycleScope.launch(Dispatchers.Main) {
+                    Toast.makeText(this@MainActivity, "自動通話を $time にセットしました", Toast.LENGTH_LONG)
+                        .show()
                 }
             } else {
+                lifecycleScope.launch(Dispatchers.Main) {
+                    Toast.makeText(
+                        this@MainActivity,"アラームの権限がありません。設定画面に移動します。",
+                        Toast.LENGTH_LONG
+                    ).show()
+                }
+                Intent().also {
+                    it.action = Settings.ACTION_REQUEST_SCHEDULE_EXACT_ALARM
+                    it.data = Uri.fromParts("package", packageName, null)
+                    startActivity(it)
+                }
+            }
+        } else {
             alarmManager.setExactAndAllowWhileIdle(
                 AlarmManager.RTC_WAKEUP,
                 calendar.timeInMillis,
                 pendingIntent
             )
-            Toast.makeText(this, "通知を $time にセットしました", Toast.LENGTH_LONG).show()
+            lifecycleScope.launch(Dispatchers.Main) {
+                Toast.makeText(this@MainActivity, "自動通話を $time にセットしました", Toast.LENGTH_LONG).show()
+            }
         }
     }
-}
 
-@Composable//ホーム画面
+    @Composable//ホーム画面
     fun Screen1(
         callList: List<CallInfo>,
         navController: NavController,
@@ -358,9 +378,7 @@ class MainActivity : ComponentActivity() {
         onNavigateToEditScreen: (String) -> Unit,
         onNavigateToVideoCall: (String) -> Unit,
         onDeleteCall: (String) -> Unit,
-) {
-        val context = LocalContext.current
-
+    ) {
         Scaffold(
             modifier = Modifier.fillMaxSize(),
             bottomBar = {
@@ -430,221 +448,225 @@ class MainActivity : ComponentActivity() {
         }
     }
 
-private const val YOUR_APP_ID = "dd4ae31edd954871979236cff5e4c1bc"
-private const val TAG = "VideoCallScreen"
+    @Composable//登録画面
+    fun Screen3(
+        callId: String?,
+        onAddClick: (name: String, number: String, time: String, daysOfWeek: Set<Int>) -> Unit,
+        onUpdateClick: (id: String, name: String, number: String, time: String, daysOfWeek: Set<Int>) -> Unit,
+        navController: NavController,
+        modifier: Modifier = Modifier,
+        callViewModel: CallViewModel
+    ) {
+        val isEditing = callId != null
+        var name by remember { mutableStateOf("") }
+        var number by remember { mutableStateOf("") }
+        var time by remember { mutableStateOf("") }
 
-@Composable//登録画面
-fun Screen3(
-    callId: String?,
-    onAddClick: (name: String, number: String, time: String, daysOfWeek: Set<Int>) -> Unit,
-    onUpdateClick: (id: String, name: String, number: String, time: String, daysOfWeek: Set<Int>) -> Unit,
-    navController: NavController,
-    modifier: Modifier = Modifier,
-    callViewModel: CallViewModel
-) {
-    val isEditing = callId != null
-    var name by remember { mutableStateOf("") }
-    var number by remember { mutableStateOf("") }
-    var time by remember { mutableStateOf("") }
+        val daysOfWeekMap = mapOf(
+            "日曜日" to Calendar.SUNDAY,
+            "月曜日" to Calendar.MONDAY,
+            "火曜日" to Calendar.TUESDAY,
+            "水曜日" to Calendar.WEDNESDAY,
+            "木曜日" to Calendar.THURSDAY,
+            "金曜日" to Calendar.FRIDAY,
+            "土曜日" to Calendar.SATURDAY
+        )
+        var selectedDays by remember { mutableStateOf<Set<String>>(emptySet()) }
+        val scrollState = rememberScrollState()
 
-    val daysOfWeekMap = mapOf(
-        "日曜日" to Calendar.SUNDAY, "月曜日" to Calendar.MONDAY, "火曜日" to Calendar.TUESDAY,
-        "水曜日" to Calendar.WEDNESDAY, "木曜日" to Calendar.THURSDAY, "金曜日" to Calendar.FRIDAY,
-        "土曜日" to Calendar.SATURDAY
-    )
-    var selectedDays by remember { mutableStateOf<Set<String>>(emptySet()) }
-    val scrollState = rememberScrollState()
-
-    LaunchedEffect(Unit) {
-        if (isEditing) {
-            callViewModel.getCallInfoById(callId!!)?.let { info ->
-                name = info.name
-                number = info.number
-                time = info.time
-                selectedDays = info.daysOfWeek.mapNotNull { dayInt ->
-                    daysOfWeekMap.entries.find { it.value == dayInt }?.key
-                }.toSet()
+        LaunchedEffect(key1 = callId) {
+            if (isEditing) {
+                callViewModel.getCallInfoById(callId)?.let { info ->
+                    name = info.name
+                    number = info.number
+                    time = info.time
+                    selectedDays = info.daysOfWeek.mapNotNull { dayInt ->
+                        daysOfWeekMap.entries.find { it.value == dayInt }?.key
+                    }.toSet()
+                }
+            } else {
+                name = ""
+                number = ""
+                time = ""
+                selectedDays = emptySet()
             }
-        } else {
-            name = ""
-            number = ""
-            time = ""
-            selectedDays = emptySet()
+        }
+
+        Scaffold(
+            modifier = modifier.fillMaxSize(),
+            bottomBar = {
+                NavigationBar(
+                    onHomeClick = {
+                        navController.navigate("screen1") {
+                            popUpTo(navController.graph.startDestinationId) { inclusive = true }
+                            launchSingleTop = true
+                        }
+                    },
+                    onNotificationsClick = { navController.navigate("screen4") },
+                    onSettingsClick = { navController.navigate("screen5") }
+                )
+            }
+        ) { innerPadding ->
+            Column(
+                modifier = Modifier
+                    .fillMaxSize()
+                    .padding(innerPadding)
+                    .padding(16.dp)
+                    .verticalScroll(scrollState),
+                horizontalAlignment = Alignment.CenterHorizontally,
+                verticalArrangement = Arrangement.Top
+            ) {
+                Spacer(modifier = Modifier.height(16.dp))
+                Text(
+                    text = if (isEditing) "通話相手の編集" else "通話相手の登録",
+                    fontSize = 24.sp,
+                    style = MaterialTheme.typography.titleLarge,
+                    modifier = Modifier.padding(bottom = 16.dp)
+                )
+                Spacer(modifier = Modifier.height(16.dp))
+                MyTextField(
+                    value = name,
+                    onValueChange = { name = it },
+                    label = "通話相手の名前を入力してください。",
+                    modifier = Modifier.width(320.dp)
+                )
+
+                Spacer(modifier = Modifier.height(16.dp))
+                MyTextField(
+                    value = number,
+                    onValueChange = { number = it },
+                    label = "通話相手と同じルーム ID を\n設定してください。",
+                    modifier = Modifier.width(320.dp)
+                )
+
+                Spacer(modifier = Modifier.height(16.dp))
+                MyTextField(
+                    value = time,
+                    onValueChange = { time = it },
+                    label = "時間を入力してください。例:19:00",
+                    modifier = Modifier.width(320.dp)
+                )
+
+                Spacer(modifier = Modifier.height(16.dp))
+                DayOfWeekSelector(
+                    selectedDays = selectedDays,
+                    onDaySelected = { day ->
+                        selectedDays = if (selectedDays.contains(day)) {
+                            selectedDays - day
+                        } else {
+                            selectedDays + day
+                        }
+                    },
+                    daysOfWeek = daysOfWeekMap.keys.toList(),
+                    modifier = Modifier.width(320.dp)
+                )
+
+                Spacer(modifier = Modifier.height(24.dp))
+
+                ActionButton(
+                    text = if (isEditing) "更新" else "完了",
+                    onClick = {
+                        if (name.isNotBlank() && number.isNotBlank() && time.isNotBlank() && selectedDays.isNotEmpty()) {
+                            val daysOfWeekInts =
+                                selectedDays.mapNotNull { daysOfWeekMap[it] }.toSet()
+                            if (isEditing) {
+                                onUpdateClick(callId, name, number, time, daysOfWeekInts)
+                            } else {
+                                onAddClick(name, number, time, daysOfWeekInts)
+                            }
+                        }
+                    }
+                )
+            }
         }
     }
 
-    Scaffold(
-        modifier = modifier.fillMaxSize(),
-        bottomBar = {
-            NavigationBar(
-                onHomeClick = {
-                    navController.navigate("screen1") {
-                        popUpTo(navController.graph.startDestinationId) { inclusive = true }
-                        launchSingleTop = true
-                    }
+    @Composable//通知画面
+    fun Screen4(
+        modifier: Modifier = Modifier,
+        navController: NavController,
+        notifications: List<NotificationInfo>
+    ) {
+        Scaffold(
+            modifier = modifier.fillMaxSize(),
+            bottomBar = {
+                NavigationBar(
+                    onHomeClick = {
+                        navController.navigate("screen1") {
+                            popUpTo(navController.graph.startDestinationId) { inclusive = true }
+                            launchSingleTop = true
+                        }
                     },
-                onNotificationsClick = { navController.navigate("screen4") },
-                onSettingsClick = { navController.navigate("screen5") }
-            )
-        }
-    ) { innerPadding ->
-        Column (
-            modifier = Modifier
-                .fillMaxSize()
-                .padding(innerPadding)
-                .padding(16.dp)
-                .verticalScroll(scrollState),
-            horizontalAlignment = Alignment.CenterHorizontally,
-            verticalArrangement = Arrangement.Top
-        ) {
-            Spacer(modifier = Modifier.height(16.dp))
-            Text(
-                text = if (isEditing) "通話相手の編集" else "通話相手の登録",
-                fontSize = 24.sp,
-                style = MaterialTheme.typography.titleLarge,
-                modifier = Modifier.padding(bottom = 16.dp)
-            )
-            Spacer(modifier = Modifier.height(16.dp))
-            MyTextField(
-                value = name,
-                onValueChange = { name = it },
-                label = "通話相手の名前を入力してください。",
-                modifier = Modifier.width(320.dp)
-            )
-
-            Spacer(modifier = Modifier.height(16.dp))
-            MyTextField(
-                value = number,
-                onValueChange = { number = it },
-                label = "通話相手と同じルーム ID を\n設定してください。",
-                modifier = Modifier.width(320.dp)
-            )
-
-            Spacer(modifier = Modifier.height(16.dp))
-            MyTextField(
-                value = time,
-                onValueChange = { time = it },
-                label = "時間を入力してください。例:19:00",
-                modifier = Modifier.width(320.dp)
-            )
-
-            Spacer(modifier = Modifier.height(16.dp))
-            DayOfWeekSelector(
-                selectedDays = selectedDays,
-                onDaySelected = { day ->
-                    selectedDays = if (selectedDays.contains(day)) {
-                        selectedDays - day
-                    } else {
-                        selectedDays + day
+                    onNotificationsClick = { navController.navigate("screen4") },
+                    onSettingsClick = { navController.navigate("screen5") }
+                )
+            }
+        ) { innerPadding ->
+            Column(
+                modifier = Modifier
+                    .fillMaxSize()
+                    .padding(innerPadding)
+                    .padding(16.dp)
+            ) {
+                Text(
+                    "通知履歴",
+                    fontSize = 24.sp,
+                    style = MaterialTheme.typography.titleLarge,
+                    modifier = Modifier.padding(bottom = 16.dp)
+                )
+                if (notifications.isEmpty()) {
+                    Box(
+                        modifier = Modifier.fillMaxSize(),
+                        contentAlignment = Alignment.Center
+                    ) {
+                        Text(
+                            "通知履歴はありません。",
+                            textAlign = TextAlign.Center
+                        )
                     }
-                },
-                daysOfWeek = daysOfWeekMap.keys.toList(),
-                modifier = Modifier.width(320.dp)
-            )
-
-            Spacer(modifier = Modifier.height(24.dp))
-
-            ActionButton(
-                text = if (isEditing) "更新" else "完了",
-                onClick = {
-                    if (name.isNotBlank() && number.isNotBlank() && time.isNotBlank() && selectedDays.isNotEmpty()) {
-                        val daysOfWeekInts = selectedDays.mapNotNull { daysOfWeekMap[it] }.toSet()
-                        if (isEditing) {
-                            onUpdateClick(callId, name, number, time, daysOfWeekInts)
-                        } else {
-                            onAddClick(name, number, time, daysOfWeekInts)
+                } else {
+                    LazyColumn(
+                        verticalArrangement = Arrangement.spacedBy(8.dp)
+                    ) {
+                        items(notifications, key = { it.id }) { info ->
+                            NotificationItem(info = info)
                         }
                     }
                 }
-            )
-        }
-    }
-}
-
-@Composable//通知画面
-fun Screen4(
-    modifier: Modifier = Modifier,
-    navController: NavController,
-    notifications: List<NotificationInfo>
-    ) {
-    Scaffold(
-        modifier = modifier.fillMaxSize(),
-        bottomBar = {
-            NavigationBar(
-                onHomeClick = {
-                    navController.navigate("screen1") {
-                        popUpTo(navController.graph.startDestinationId) { inclusive = true }
-                        launchSingleTop = true
-                    }
-                },
-                onNotificationsClick = { navController.navigate("screen4") },
-                onSettingsClick = { navController.navigate("screen5") }
-            )
-        }
-    ) { innerPadding ->
-        Column(
-            modifier = Modifier
-                .fillMaxSize()
-                .padding(innerPadding)
-                .padding(16.dp)
-        ) {
-            Text(
-                "通知履歴",
-                fontSize = 24.sp,
-                style = MaterialTheme.typography.titleLarge,
-                modifier = Modifier.padding(bottom = 16.dp)
-            )
-            if (notifications.isEmpty()) {
-                Box(
-                    modifier = Modifier.fillMaxSize(),
-                    contentAlignment = Alignment.Center
-                ) {
-                    Text(
-                        "通知履歴はありません。",
-                        textAlign = TextAlign.Center
-                    )
-                }
-            } else {
-                LazyColumn(
-                    verticalArrangement = Arrangement.spacedBy(8.dp)
-                ) {
-                    items(notifications, key = { it.id }) { info ->
-                        NotificationItem(info = info)
-                    }
-                }
             }
         }
     }
-}
 
-@Composable//設定画面
-fun Screen5(navController: NavController, modifier: Modifier = Modifier) {
-    Scaffold(
-        bottomBar = {
-            NavigationBar(
-                onHomeClick = {
-                    navController.navigate("screen1") {
-                        popUpTo(navController.graph.startDestinationId) { inclusive = true }
-                        launchSingleTop = true
-                    }
-                },
-                onNotificationsClick = { navController.navigate("screen4") },
-                onSettingsClick = { navController.navigate("screen5") }
-            )
-        }
-    ) { innerPadding ->
-        Box(
-            modifier = Modifier
-                .fillMaxSize()
-                .padding(innerPadding)
-                .padding(16.dp),
-            contentAlignment = Alignment.TopStart
-        ) {
-            Text(
-                "設定",
-                fontSize = 24.sp,
-                style = MaterialTheme.typography.headlineMedium)
+    @Composable//設定画面
+    fun Screen5(navController: NavController, modifier: Modifier = Modifier) {
+        Scaffold(
+            bottomBar = {
+                NavigationBar(
+                    onHomeClick = {
+                        navController.navigate("screen1") {
+                            popUpTo(navController.graph.startDestinationId) { inclusive = true }
+                            launchSingleTop = true
+                        }
+                    },
+                    onNotificationsClick = { navController.navigate("screen4") },
+                    onSettingsClick = { navController.navigate("screen5") }
+                )
+            }
+        ) { innerPadding ->
+            Box(
+                modifier = Modifier
+                    .fillMaxSize()
+                    .padding(innerPadding)
+                    .padding(16.dp),
+                contentAlignment = Alignment.TopStart
+            ) {
+                Text(
+                    "設定",
+                    fontSize = 24.sp,
+                    style = MaterialTheme.typography.headlineMedium
+                )
 
+            }
         }
     }
 }

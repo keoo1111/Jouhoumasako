@@ -11,14 +11,16 @@ import android.content.pm.PackageManager
 import android.icu.text.SimpleDateFormat
 import androidx.core.app.ActivityCompat
 import androidx.core.app.NotificationCompat
+import androidx.core.content.edit
 import com.google.gson.Gson
 import com.google.gson.reflect.TypeToken
+import kotlinx.coroutines.CoroutineScope
+import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.SupervisorJob
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
-import java.util.Date
-import java.util.Locale
-import java.util.UUID
-import androidx.core.content.edit
+import kotlinx.coroutines.launch
+import java.util.*
 
 data class NotificationInfo(
     val id: UUID = UUID.randomUUID(),
@@ -33,6 +35,7 @@ object NotificationRepository {
 
     private lateinit var sharedPreferences: SharedPreferences
     private val gson = Gson()
+    private val repositoryScope = CoroutineScope(Dispatchers.IO + SupervisorJob())
 
     fun init(context: Context) {
         sharedPreferences = context.getSharedPreferences("notification_prefs", Context.MODE_PRIVATE)
@@ -44,11 +47,12 @@ object NotificationRepository {
         val timestamp = sdf.format(Date())
         val newNotification = NotificationInfo(title = title, message = message, timestamp = timestamp)
         _notifications.value = listOf(newNotification) + _notifications.value
-        saveNotifications() // 保存処理を呼び出し
+        saveNotifications()
     }
 
     private fun saveNotifications() {
-        if (::sharedPreferences.isInitialized) {
+        if (!::sharedPreferences.isInitialized) return
+        repositoryScope.launch {
             val jsonString = gson.toJson(_notifications.value)
             sharedPreferences.edit {
                 putString("notification_list_key", jsonString)
@@ -57,7 +61,8 @@ object NotificationRepository {
     }
 
     private fun loadNotifications() {
-        if (::sharedPreferences.isInitialized) {
+        if (!::sharedPreferences.isInitialized) return
+        repositoryScope.launch {
             val jsonString = sharedPreferences.getString("notification_list_key", null)
             if (jsonString != null) {
                 val type = object : TypeToken<List<NotificationInfo>>() {}.type
@@ -88,27 +93,28 @@ class NotificationReceiver : BroadcastReceiver() {
             putExtra("TOKEN", token)
         }
 
-        // PendingIntent を作成
+        val requestCode = System.currentTimeMillis().toInt()
         val fullScreenPendingIntent = PendingIntent.getActivity(
             context,
-            UUID.randomUUID().hashCode(),
+            requestCode,
             fullScreenIntent,
             PendingIntent.FLAG_UPDATE_CURRENT or PendingIntent.FLAG_IMMUTABLE
         )
 
         val notificationBuilder = NotificationCompat.Builder(context, CHANNEL_ID)
-            .setSmallIcon(R.drawable.ic_launcher_foreground) // TODO: 通話アイコンに変更推奨
+            .setSmallIcon(R.drawable.ic_notification_call)
             .setContentTitle(title)
             .setContentText(message)
             .setPriority(NotificationCompat.PRIORITY_HIGH)
             .setCategory(NotificationCompat.CATEGORY_CALL)
             .setFullScreenIntent(fullScreenPendingIntent, true)
+            .setAutoCancel(true)
 
         if (ActivityCompat.checkSelfPermission(context, Manifest.permission.POST_NOTIFICATIONS) != PackageManager.PERMISSION_GRANTED) {
             return
         }
 
         val manager = context.getSystemService(Context.NOTIFICATION_SERVICE) as NotificationManager
-        manager.notify(System.currentTimeMillis().toInt(), notificationBuilder.build())
+        manager.notify(requestCode, notificationBuilder.build())
     }
 }

@@ -1,5 +1,6 @@
 package com.example.a0726risu
 
+import android.app.Application
 import android.os.Build
 import android.os.Bundle
 import android.util.Log
@@ -25,8 +26,14 @@ import io.agora.rtc2.RtcEngine
 import io.agora.rtc2.RtcEngineConfig
 import io.agora.rtc2.video.VideoCanvas
 
-private const val YOUR_APP_ID_VC = "dd4ae31edd954871979236cff5e4c1bc"
 private const val TAG_VC = "VideoCallActivity"
+
+class MainApplication : Application() {
+    override fun onCreate() {
+        super.onCreate()
+        NotificationRepository.init(this)
+    }
+}
 
 class VideoCallActivity : ComponentActivity() {
     override fun onCreate(savedInstanceState: Bundle?) {
