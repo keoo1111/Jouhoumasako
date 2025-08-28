@@ -35,6 +35,8 @@ import com.example.a0726risu.NotificationInfo
 import com.example.a0726risu.NotificationItem
 import com.example.a0726risu.VideoCallUi
 import java.util.Calendar
+import androidx.compose.ui.graphics.Color
+import androidx.compose.foundation.background
 
 @Preview(showBackground = true)
 @Composable
@@ -80,18 +82,34 @@ fun Screen1Preview() {
     }
 }
 
-
-
 @Preview(showBackground = true, name = "ビデオ通話画面（相手あり）")
 @Composable
 private fun VideoCallUiPreviewWithRemote() {
     _0726risuTheme {
         VideoCallUi(
-                statusText = "Connected",
-                hasRemoteUser = true,
-                onCallEnd = {},
-                localSurfaceView = { Box(modifier=Modifier.fillMaxSize()){ Text("Local View") } },
-                remoteSurfaceView = { Box(modifier=Modifier.fillMaxSize()){ Text("Remote View") } }
+            statusText = "通話に接続しました",
+            hasRemoteUser = true,
+            // --- 👇 不足していた引数を追加 👇 ---
+            currentTopic = "最近ハマっていることは何？",
+            onNextTopicClick = {}, // プレビューなので空の処理でOK
+            // --- 👆 ここまで 👆 ---
+            onCallEnd = {},
+            localSurfaceView = {
+                Box(
+                    modifier = Modifier.fillMaxSize().background(Color.Gray),
+                    contentAlignment = Alignment.Center
+                ) {
+                    Text("自分の映像")
+                }
+            },
+            remoteSurfaceView = {
+                Box(
+                    modifier = Modifier.fillMaxSize().background(Color.LightGray),
+                    contentAlignment = Alignment.Center
+                ) {
+                    Text("相手の映像")
+                }
+            }
         )
     }
 }
@@ -101,14 +119,26 @@ private fun VideoCallUiPreviewWithRemote() {
 private fun VideoCallUiPreviewWithoutRemote() {
     _0726risuTheme {
         VideoCallUi(
-            statusText = "Waiting for others...",
+            statusText = "相手を待っています...",
             hasRemoteUser = false,
+            // --- 👇 不足していた引数を追加 👇 ---
+            currentTopic = "ボタンを押して話題を変えよう！",
+            onNextTopicClick = {}, // プレビューなので空の処理でOK
+            // --- 👆 ここまで 👆 ---
             onCallEnd = {},
-            localSurfaceView = { Box(modifier=Modifier.fillMaxSize()){ Text("Local View") } },
-            remoteSurfaceView = {}
+            localSurfaceView = {
+                Box(
+                    modifier = Modifier.fillMaxSize().background(Color.Gray),
+                    contentAlignment = Alignment.Center
+                ) {
+                    Text("自分の映像")
+                }
+            },
+            remoteSurfaceView = {} // 相手がいないので空のまま
         )
     }
 }
+
 
 @Preview(showBackground = true)
 @Composable
