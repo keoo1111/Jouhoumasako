@@ -105,7 +105,7 @@ class MainActivity : ComponentActivity() {
                                         VideoCallActivity::class.java
                                     ).apply {
                                         putExtra("CHANNEL_NAME", channelName)
-                                        putExtra("TOKEN", AppConstants.AGORA_TOKEN)
+                                        putExtra("TOKEN", "007eJxTYHDes7IsYgdji1ozo/XdIzHORj1RZ/O29tnNv37cd1nr+7sKDCkpJompxoapKSmWpiYW5oaW5pZGxmbJaWmmqSbJhknJGi/WZzQEMjLUrDjHyMgAgSA+M4OhoSEDAwBgsh/1")
                                     }
                                     startActivity(intent)
                                 },
@@ -476,7 +476,7 @@ class MainActivity : ComponentActivity() {
 
         LaunchedEffect(key1 = callId) {
             if (isEditing) {
-                callViewModel.getCallInfoById(callId)?.let { info ->
+                callViewModel.getCallInfoById(callId!!)?.let { info ->
                     name = info.name
                     number = info.number
                     time = info.time
@@ -570,7 +570,7 @@ class MainActivity : ComponentActivity() {
                             val daysOfWeekInts =
                                 selectedDays.mapNotNull { daysOfWeekMap[it] }.toSet()
                             if (isEditing) {
-                                onUpdateClick(callId, name, number, time, daysOfWeekInts)
+                                onUpdateClick(callId!!, name, number, time, daysOfWeekInts)
                             } else {
                                 onAddClick(name, number, time, daysOfWeekInts)
                             }
