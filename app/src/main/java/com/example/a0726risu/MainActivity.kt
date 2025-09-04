@@ -63,14 +63,14 @@ import androidx.lifecycle.lifecycleScope
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.withContext
-
-data class CallInfo(
-    val id: String = UUID.randomUUID().toString(),
-    val name: String,
-    val number: String,
-    val time: String,
-    val daysOfWeek: Set<Int>
-)
+import com.example.a0726risu.AppConstants.AGORA_TOKEN
+import com.example.a0726risu.AppConstants.CHANNEL_ID
+import com.example.a0726risu.AppConstants.EXTRA_CHANNEL_NAME
+import com.example.a0726risu.AppConstants.EXTRA_DAY_OF_WEEK
+import com.example.a0726risu.AppConstants.EXTRA_MESSAGE
+import com.example.a0726risu.AppConstants.EXTRA_TIME
+import com.example.a0726risu.AppConstants.EXTRA_TITLE
+import com.example.a0726risu.AppConstants.EXTRA_TOKEN
 
 class MainActivity : ComponentActivity() {
     override fun onCreate(savedInstanceState: Bundle?) {
@@ -294,6 +294,8 @@ class MainActivity : ComponentActivity() {
             putExtra(EXTRA_MESSAGE, "時間になりました。通話を開始します。")
             putExtra(EXTRA_CHANNEL_NAME, channelName)
             putExtra(EXTRA_TOKEN, AppConstants.AGORA_TOKEN)
+            putExtra(EXTRA_TIME, time)
+            putExtra(EXTRA_DAY_OF_WEEK, dayOfWeek)
         }
 
         val requestCode = (channelName + dayOfWeek + time).hashCode()

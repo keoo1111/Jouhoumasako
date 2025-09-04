@@ -1,9 +1,20 @@
 package com.example.a0726risu
 
-private const val TAG_VC = "VideoCallActivity"
-
 object AppConstants {
-    const val AGORA_TOKEN = "007eJxTYNCqt158Wa6iNsbhL1/d4m3dZ9leTH3snHakMuBd9b4cBS8FhpQUk8RUY8PUlBRLUxMLc0NLc0sjY7PktDTTVJNkw6TkzF3rMhoCGRkaV8mzMDJAIIjPzGBoaMjAAABO3h8R"
+    // Agora 関連
+    const val AGORA_TOKEN = "ここにあなたの Agora トークンを記入"
+    const val AGORA_APP_ID = "ここにあなたの Agora App ID を記入"
 
-    const val AGORA_APP_ID = "dd4ae31edd954871979236cff5e4c1bc"
+    // 通知チャンネル ID
+    const val CHANNEL_ID = "call_notification_channel"
+
+    // Intent で使うキー (EXTRA)
+    const val EXTRA_TITLE = "extra_title"
+    const val EXTRA_MESSAGE = "extra_message"
+    const val EXTRA_CHANNEL_NAME = "extra_channel_name"
+    const val EXTRA_TOKEN = "extra_token"
+    const val EXTRA_TIME = "extra_time" // 時間
+    const val EXTRA_DAY_OF_WEEK = "extra_day_of_week" // 曜日
+
+    const val TAG_VC = "VideoCallActivity"
 }

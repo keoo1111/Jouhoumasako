@@ -89,10 +89,6 @@ private fun VideoCallUiPreviewWithRemote() {
         VideoCallUi(
             statusText = "通話に接続しました",
             hasRemoteUser = true,
-            // --- 👇 不足していた引数を追加 👇 ---
-            currentTopic = "最近ハマっていることは何？",
-            onNextTopicClick = {}, // プレビューなので空の処理でOK
-            // --- 👆 ここまで 👆 ---
             onCallEnd = {},
             localSurfaceView = {
                 Box(
@@ -121,10 +117,6 @@ private fun VideoCallUiPreviewWithoutRemote() {
         VideoCallUi(
             statusText = "相手を待っています...",
             hasRemoteUser = false,
-            // --- 👇 不足していた引数を追加 👇 ---
-            currentTopic = "ボタンを押して話題を変えよう！",
-            onNextTopicClick = {}, // プレビューなので空の処理でOK
-            // --- 👆 ここまで 👆 ---
             onCallEnd = {},
             localSurfaceView = {
                 Box(

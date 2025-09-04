@@ -6,115 +6,79 @@ import android.app.PendingIntent
 import android.content.BroadcastReceiver
 import android.content.Context
 import android.content.Intent
-import android.content.SharedPreferences
 import android.content.pm.PackageManager
-import android.icu.text.SimpleDateFormat
 import androidx.core.app.ActivityCompat
 import androidx.core.app.NotificationCompat
-import androidx.core.content.edit
-import com.google.gson.Gson
-import com.google.gson.reflect.TypeToken
-import kotlinx.coroutines.CoroutineScope
-import kotlinx.coroutines.Dispatchers
-import kotlinx.coroutines.SupervisorJob
-import kotlinx.coroutines.flow.MutableStateFlow
-import kotlinx.coroutines.flow.StateFlow
-import kotlinx.coroutines.launch
-import java.util.*
-
-data class NotificationInfo(
-    val id: UUID = UUID.randomUUID(),
-    val title: String,
-    val message: String,
-    val timestamp: String
-)
-
-object NotificationRepository {
-    private val _notifications = MutableStateFlow<List<NotificationInfo>>(emptyList())
-    val notifications: StateFlow<List<NotificationInfo>> = _notifications
-
-    private lateinit var sharedPreferences: SharedPreferences
-    private val gson = Gson()
-    private val repositoryScope = CoroutineScope(Dispatchers.IO + SupervisorJob())
-
-    fun init(context: Context) {
-        sharedPreferences = context.getSharedPreferences("notification_prefs", Context.MODE_PRIVATE)
-        loadNotifications()
-    }
-
-    fun addNotification(title: String, message: String) {
-        val sdf = SimpleDateFormat("yyyy/MM/dd HH:mm", Locale.getDefault())
-        val timestamp = sdf.format(Date())
-        val newNotification = NotificationInfo(title = title, message = message, timestamp = timestamp)
-        _notifications.value = listOf(newNotification) + _notifications.value
-        saveNotifications()
-    }
-
-    private fun saveNotifications() {
-        if (!::sharedPreferences.isInitialized) return
-        repositoryScope.launch {
-            val jsonString = gson.toJson(_notifications.value)
-            sharedPreferences.edit {
-                putString("notification_list_key", jsonString)
-            }
-        }
-    }
-
-    private fun loadNotifications() {
-        if (!::sharedPreferences.isInitialized) return
-        repositoryScope.launch {
-            val jsonString = sharedPreferences.getString("notification_list_key", null)
-            if (jsonString != null) {
-                val type = object : TypeToken<List<NotificationInfo>>() {}.type
-                _notifications.value = gson.fromJson(jsonString, type)
-            }
-        }
-    }
-}
-
-const val CHANNEL_ID = "call_notification_channel"
-const val EXTRA_TITLE = "extra_title"
-const val EXTRA_MESSAGE = "extra_message"
-const val EXTRA_CHANNEL_NAME = "extra_channel_name"
-const val EXTRA_TOKEN = "extra_token"
+import com.example.a0726risu.AppConstants.CHANNEL_ID
+import com.example.a0726risu.AppConstants.EXTRA_CHANNEL_NAME
+import com.example.a0726risu.AppConstants.EXTRA_DAY_OF_WEEK
+import com.example.a0726risu.AppConstants.EXTRA_MESSAGE
+import com.example.a0726risu.AppConstants.EXTRA_TIME
+import com.example.a0726risu.AppConstants.EXTRA_TITLE
+import com.example.a0726risu.AppConstants.EXTRA_TOKEN
 
 class NotificationReceiver : BroadcastReceiver() {
     override fun onReceive(context: Context, intent: Intent) {
+        // Intent からすべての情報を受け取る
         val title = intent.getStringExtra(EXTRA_TITLE) ?: "時間です！"
         val message = intent.getStringExtra(EXTRA_MESSAGE) ?: "通話の準備をしましょう。"
         val channelName = intent.getStringExtra(EXTRA_CHANNEL_NAME) ?: return
         val token = intent.getStringExtra(EXTRA_TOKEN) ?: ""
+        val time = intent.getStringExtra(EXTRA_TIME) ?: ""
+        val dayOfWeek = intent.getIntExtra(EXTRA_DAY_OF_WEEK, 0)
 
+        // 1. 安定した通知 ID を生成する
+        val notificationId = (channelName + dayOfWeek + time).hashCode()
+
+        // 2. 通知履歴を保存する
         NotificationRepository.addNotification(title, message)
 
+        // 3. 通知タップ時のインテント (VideoCallActivity を開く)
         val fullScreenIntent = Intent(context, VideoCallActivity::class.java).apply {
             flags = Intent.FLAG_ACTIVITY_NEW_TASK
             putExtra("CHANNEL_NAME", channelName)
             putExtra("TOKEN", token)
         }
-
-        val requestCode = System.currentTimeMillis().toInt()
         val fullScreenPendingIntent = PendingIntent.getActivity(
             context,
-            requestCode,
+            notificationId, // 安定した ID を使う
             fullScreenIntent,
             PendingIntent.FLAG_UPDATE_CURRENT or PendingIntent.FLAG_IMMUTABLE
         )
 
+        // 4. スヌーズボタン用のインテント
+        val snoozeIntent = Intent(context, SnoozeReceiver::class.java).apply {
+            putExtra(EXTRA_TITLE, title)
+            putExtra(EXTRA_CHANNEL_NAME, channelName)
+            putExtra(EXTRA_TOKEN, token)
+            // SnoozeReceiver が受け取るキーに合わせて調整
+            putExtra("TIME", time)
+            putExtra("DAY_OF_WEEK", dayOfWeek)
+        }
+        val snoozePendingIntent = PendingIntent.getBroadcast(
+            context,
+            notificationId + 1, // ID が衝突しないように +1 する
+            snoozeIntent,
+            PendingIntent.FLAG_UPDATE_CURRENT or PendingIntent.FLAG_IMMUTABLE
+        )
+
+        // 5. 通知を組み立てる
         val notificationBuilder = NotificationCompat.Builder(context, CHANNEL_ID)
-            .setSmallIcon(R.drawable.ic_notification_call)
+            .setSmallIcon(R.drawable.ic_notification_call) // TODO: res/drawableにアイコンを追加してください
             .setContentTitle(title)
             .setContentText(message)
             .setPriority(NotificationCompat.PRIORITY_HIGH)
             .setCategory(NotificationCompat.CATEGORY_CALL)
             .setFullScreenIntent(fullScreenPendingIntent, true)
             .setAutoCancel(true)
+            .addAction(0, "10 分後に再通知", snoozePendingIntent)
 
         if (ActivityCompat.checkSelfPermission(context, Manifest.permission.POST_NOTIFICATIONS) != PackageManager.PERMISSION_GRANTED) {
             return
         }
 
+        // 6. 通知を表示する
         val manager = context.getSystemService(Context.NOTIFICATION_SERVICE) as NotificationManager
-        manager.notify(requestCode, notificationBuilder.build())
+        manager.notify(notificationId, notificationBuilder.build()) // 安定した ID を使う
     }
 }
