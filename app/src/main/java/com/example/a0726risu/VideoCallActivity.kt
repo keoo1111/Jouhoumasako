@@ -9,6 +9,8 @@ import androidx.compose.material3.Button
 import androidx.compose.material3.Text
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.foundation.layout.padding
+import androidx.compose.ui.unit.dp
 
 // このファイルには VideoCallActivity クラスだけを記述します
 class VideoCallActivity : ComponentActivity() {
@@ -30,7 +32,9 @@ class VideoCallActivity : ComponentActivity() {
 
                 Button(
                     onClick = { finish() }, // ひとまず終了ボタンを設置
-                    modifier = Modifier.align(Alignment.BottomCenter)
+                    modifier = Modifier
+                        .align(Alignment.BottomCenter)
+                        .padding(bottom = 32.dp)
                 ) {
                     Text("通話を終了")
                 }
