@@ -1,5 +1,6 @@
 package com.example.a0726risu.ui.theme
 
+import android.app.Application
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
@@ -37,6 +38,23 @@ import com.example.a0726risu.VideoCallUi
 import java.util.Calendar
 import androidx.compose.ui.graphics.Color
 import androidx.compose.foundation.background
+import androidx.navigation.compose.rememberNavController
+import com.example.a0726risu.FontSize
+import com.example.a0726risu.SettingsViewModel
+import kotlinx.coroutines.flow.MutableStateFlow
+import kotlinx.coroutines.flow.StateFlow
+import com.example.a0726risu.Screen5
+import androidx.compose.material3.Surface
+import com.example.a0726risu.TopicRepository
+
+
+class PreviewSettingsViewModel : SettingsViewModel(Application()) {
+    private val _fontSize = MutableStateFlow(FontSize.MEDIUM)
+    override val fontSize: StateFlow<FontSize> = _fontSize
+    override fun setFontSize(size: FontSize) {
+        _fontSize.value = size
+    }
+}
 
 @Preview(showBackground = true)
 @Composable
@@ -82,37 +100,64 @@ fun Screen1Preview() {
     }
 }
 
-@Preview(showBackground = true, name = "ビデオ通話画面（相手あり）")
+
 @Composable
-private fun VideoCallUiPreviewWithRemote() {
+private fun DummySurfaceView(text: String) {
+    Surface(
+        color = Color.LightGray,
+        modifier = Modifier.fillMaxSize()
+    ) {
+        Box(contentAlignment = Alignment.Center) {
+            Text(text)
+        }
+    }
+}
+
+@Preview(showBackground = true, name = "ビデオ通話画面（相手待機中）")
+@Composable
+private fun VideoCallUiPreview_Waiting() {
     _0726risuTheme {
         VideoCallUi(
-            statusText = "通話に接続しました",
-            hasRemoteUser = true,
+            statusText = "相手の参加を待っています...",
+            hasRemoteUser = false,
             onCallEnd = {},
-            localSurfaceView = {
-                Box(
-                    modifier = Modifier.fillMaxSize().background(Color.Gray),
-                    contentAlignment = Alignment.Center
-                ) {
-                    Text("自分の映像")
-                }
-            },
-            remoteSurfaceView = {
-                Box(
-                    modifier = Modifier.fillMaxSize().background(Color.LightGray),
-                    contentAlignment = Alignment.Center
-                ) {
-                    Text("相手の映像")
-                }
-            }
+            localSurfaceView = { DummySurfaceView("自分の映像") },
+            remoteSurfaceView = {},
+            topics = TopicRepository.getRandomTopics(5)
         )
     }
 }
 
+@Preview(showBackground = true, name = "ビデオ通話画面（通話中）")
+@Composable
+private fun VideoCallUiPreview_Connected() {
+    _0726risuTheme {
+        VideoCallUi(
+            statusText = "",
+            hasRemoteUser = true,
+            onCallEnd = {},
+            localSurfaceView = { DummySurfaceView("自分の映像") },
+            remoteSurfaceView = {
+                Surface(color = Color.DarkGray, modifier = Modifier.fillMaxSize()) {
+                    Box(contentAlignment = Alignment.Center) {
+                        Text("相手の映像", color = Color.White)
+                    }
+                }
+            },
+            topics = TopicRepository.getRandomTopics(5)
+        )
+    }
+}
+
+
 @Preview(showBackground = true, name = "ビデオ通話画面（相手なし）")
 @Composable
 private fun VideoCallUiPreviewWithoutRemote() {
+    val sampleTopics = listOf(
+        "子どもの頃の夢は何だった？",
+        "最近ハマっていることは何？",
+        "一番思い出に残っている旅行は？"
+    )
     _0726risuTheme {
         VideoCallUi(
             statusText = "相手を待っています...",
@@ -120,17 +165,19 @@ private fun VideoCallUiPreviewWithoutRemote() {
             onCallEnd = {},
             localSurfaceView = {
                 Box(
-                    modifier = Modifier.fillMaxSize().background(Color.Gray),
+                    modifier = Modifier
+                        .fillMaxSize()
+                        .background(Color.LightGray),
                     contentAlignment = Alignment.Center
                 ) {
                     Text("自分の映像")
                 }
             },
-            remoteSurfaceView = {} // 相手がいないので空のまま
+            remoteSurfaceView = {},
+            topics = sampleTopics
         )
     }
 }
-
 
 @Preview(showBackground = true)
 @Composable
@@ -240,28 +287,16 @@ private fun Screen4Preview() {
     }
 }
 
-@Preview(showBackground = true)
+@Preview(showBackground = true, name = "Screen5 - Test 3 (Full)")
 @Composable
-private fun Screen5Preview() {
+private fun Screen5Preview_Test() {
+    val previewViewModel = remember { PreviewSettingsViewModel() }
+    val navController = rememberNavController()
+
     _0726risuTheme {
-        Scaffold(
-            bottomBar = {
-                NavigationBar(onHomeClick = {}, onNotificationsClick = {}, onSettingsClick = {})
-            }
-        ) { innerPadding ->
-            Box(
-                modifier = Modifier
-                    .fillMaxSize()
-                    .padding(innerPadding)
-                    .padding(16.dp),
-                contentAlignment = Alignment.TopStart
-            ) {
-                Text(
-                    "設定",
-                    fontSize = 24.sp,
-                    style = MaterialTheme.typography.headlineMedium
-                )
-            }
-        }
+        Screen5(
+            navController = navController,
+            settingsViewModel = previewViewModel
+        )
     }
 }

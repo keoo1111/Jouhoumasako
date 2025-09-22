@@ -20,8 +20,10 @@ import androidx.activity.result.contract.ActivityResultContracts
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
+import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.fillMaxSize
+import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.width
@@ -55,6 +57,7 @@ import java.text.SimpleDateFormat
 import androidx.compose.foundation.layout.safeDrawingPadding
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.verticalScroll
+import androidx.compose.material3.ButtonDefaults
 import androidx.navigation.NavType
 import androidx.navigation.navArgument
 import androidx.compose.runtime.LaunchedEffect
@@ -68,7 +71,88 @@ import com.example.a0726risu.AppConstants.EXTRA_DAY_OF_WEEK
 import com.example.a0726risu.AppConstants.EXTRA_MESSAGE
 import com.example.a0726risu.AppConstants.EXTRA_TIME
 import com.example.a0726risu.AppConstants.EXTRA_TITLE
-import com.example.a0726risu.AppConstants.EXTRA_TOKEN
+import androidx.compose.material3.Button
+import androidx.compose.material3.Card
+import androidx.compose.material3.CardDefaults
+
+object DailyTrivia {
+    private val triviaMap = mapOf(
+        // 1 月
+        "0101" to "あけましておめでとうございます。元旦ですね。",
+        "0107" to "今日は七草がゆを食べる日ですね。無病息災を祈ります。",
+        "0110" to "今日は「110 番の日」です。いざという時のために覚えておきましょう。",
+        "0115" to "「いちごの日」だそうです。美味しいいちごが食べたくなりますね。",
+
+        // 2 月
+        "0203" to "今日は節分です。豆まきで鬼を追い払いましょう。",
+        "0211" to "建国記念の日ですね。",
+        "0214" to "バレンタインデーですね。チョコレートが美味しい季節です。",
+        "0222" to "にゃん・にゃん・にゃんで「猫の日」だそうです。可愛いですね。",
+
+        // 3 月
+        "0303" to "ひな祭りの日ですね。ちらし寿司やはまぐりのお吸い物が美味しいです。",
+        "0314" to "ホワイトデーですね。お返しのプレゼントを選ぶのも楽しいです。",
+        "0320" to "春分の日です。だんだんと昼が長くなり、春の訪れを感じますね。",
+
+        // 4 月
+        "0401" to "今日から新年度の始まりですね。何か新しいことを始めるのもいいですね。",
+        "0408" to "お釈迦様の誕生日「花まつり」の日です。",
+        "0429" to "昭和の日ですね。懐かしい時代に思いを馳せる日です。",
+
+        // 5 月
+        "0505" to "こどもの日です。柏餅を食べる日ですね。",
+        "0508" to "5(ご)8(よう) で「ゴーヤーの日」だそうです。沖縄の夏野菜ですね。",
+        "0509" to "今日は母の日。いつもありがとう、と感謝を伝える日ですね。",
+
+        // 6 月
+        "0606" to "梅雨の季節ですね。綺麗なアジサイの花が見頃になります。",
+        "0610" to "時の記念日です。時間を大切にしたいですね。",
+        "0615" to "今日は「オウムとインコの日」だそうですよ。",
+
+
+        // 7 月
+        "0707" to "七夕ですね。短冊にお願い事は書きましたか？",
+
+
+
+        // 8 月
+        "0807" to "「バナナの日」だそうです。手軽に栄養がとれますね。",
+        "0811" to "山の日です。山の恵みに感謝する日ですね。",
+        "0813" to "お盆の時期ですね。ご先祖様をお迎えします。",
+        "0815" to "終戦記念日です。平和を願う日ですね。",
+        "0831" to "8(や)3(さ)1(い) で「野菜の日」だそうです。たくさん食べたいですね。",
+
+        // 9 月
+        "0901" to "防災の日です。いざという時の備えを確認しておくと安心ですね。",
+        "0909" to "菊の節句（重陽の節句）です。菊の花を飾ったり、栗ご飯を食べたりします。",
+
+        "0923" to "秋分の日です。これからだんだんと秋が深まっていきます。",
+
+        // 10 月
+        "1001" to "今日は「コーヒーの日」。温かいコーヒーで一息つきませんか？",
+        "1010" to "昔の体育の日ですね。体を動かすのに気持ちの良い季節です。",
+        "1013" to "「さつまいもの日」だそうです。焼き芋が美味しい季節ですね。",
+        "1031" to "ハロウィンですね。かぼちゃの季節です。",
+
+        // 11 月
+        "1103" to "文化の日です。芸術の秋、美術館などにお出かけもいいですね。",
+        "1115" to "七五三の日です。子どもの健やかな成長をお祝いする日ですね。",
+        "1122" to "「いい夫婦の日」ですね。大切な人と過ごすのも素敵ですね。",
+        "1123" to "勤労感謝の日です。いつもお仕事お疲れ様です。",
+
+        // 12 月
+        "1224" to "クリスマスイブですね。素敵な一日をお過ごしください。",
+        "1225" to "クリスマスです。街がキラキラして綺麗ですね。",
+        "1231" to "大晦日です。一年間、本当にお疲れ様でした。"
+    )
+
+    fun getTriviaForToday(): String {
+        val calendar = Calendar.getInstance()
+        val format = SimpleDateFormat("MMdd", Locale.getDefault())
+        val dateKey = format.format(calendar.time)
+        return triviaMap[dateKey] ?: "今日も素敵な一日になりますように。"
+    }
+}
 
 class MainActivity : ComponentActivity() {
     override fun onCreate(savedInstanceState: Bundle?) {
@@ -77,7 +161,10 @@ class MainActivity : ComponentActivity() {
         createNotificationChannel()
         askPermissions()
         setContent {
-            _0726risuTheme {
+            val settingsViewModel: SettingsViewModel = viewModel()
+            val fontSize by settingsViewModel.fontSize.collectAsState()
+            _0726risuTheme(fontSize = fontSize) {
+
                 Surface(
                     modifier = Modifier
                         .fillMaxSize()
@@ -90,6 +177,22 @@ class MainActivity : ComponentActivity() {
                     NavHost(navController = navController, startDestination = "screen1") {
                         composable("screen1") {
                             val callList by callViewModel.callList.collectAsState()
+                            LaunchedEffect(Unit) {
+                                callViewModel.uiEvent.collect { event ->
+                                    when (event) {
+                                        is CallViewModel.UiEvent.NavigateToVideoCall -> {
+                                            val intent = Intent(this@MainActivity, VideoCallActivity::class.java).apply {
+                                                putExtra("CHANNEL_NAME", event.channelName)
+                                                putExtra("TOKEN", event.token) // ★サーバーから取得したトークンを渡す
+                                            }
+                                            startActivity(intent)
+                                        }
+                                        is CallViewModel.UiEvent.ShowError -> {
+                                            Toast.makeText(this@MainActivity, event.message, Toast.LENGTH_LONG).show()
+                                        }
+                                    }
+                                }
+                            }
                             Screen1(
                                 callList = callList,
                                 navController = navController,
@@ -98,14 +201,7 @@ class MainActivity : ComponentActivity() {
                                     navController.navigate("screen3?callId=$callId")
                                 },
                                 onNavigateToVideoCall = { channelName ->
-                                    val intent = Intent(
-                                        this@MainActivity,
-                                        VideoCallActivity::class.java
-                                    ).apply {
-                                        putExtra("CHANNEL_NAME", channelName)
-                                        putExtra("TOKEN", "007eJxTYHDes7IsYgdji1ozo/XdIzHORj1RZ/O29tnNv37cd1nr+7sKDCkpJompxoapKSmWpiYW5oaW5pZGxmbJaWmmqSbJhknJGi/WZzQEMjLUrDjHyMgAgSA+M4OhoSEDAwBgsh/1")
-                                    }
-                                    startActivity(intent)
+                                    callViewModel.fetchTokenAndNavigate(channelName)
                                 },
                                 onDeleteCall = { id -> callViewModel.deleteCallInfo(id) }
                             )
@@ -181,7 +277,9 @@ class MainActivity : ComponentActivity() {
                             )
                         }
                         composable("screen5") {
-                            Screen5(navController = navController)
+                            Screen5(
+                                navController = navController,
+                                settingsViewModel = settingsViewModel)
                         }
                     }
                 }
@@ -291,7 +389,6 @@ class MainActivity : ComponentActivity() {
             putExtra(EXTRA_TITLE, title)
             putExtra(EXTRA_MESSAGE, "時間になりました。通話を開始します。")
             putExtra(EXTRA_CHANNEL_NAME, channelName)
-            putExtra(EXTRA_TOKEN, AppConstants.AGORA_TOKEN)
             putExtra(EXTRA_TIME, time)
             putExtra(EXTRA_DAY_OF_WEEK, dayOfWeek)
         }
@@ -394,56 +491,88 @@ class MainActivity : ComponentActivity() {
                 )
             }
         ) { innerPadding ->
-            Box(
+            // ===== 変更 =====
+            // ActionButton を Column 内に移動させるため、Box はシンプルなコンテナとして機能します。
+            Column(
                 modifier = Modifier
                     .fillMaxSize()
                     .padding(innerPadding)
+                    .padding(16.dp)
             ) {
-                Column(
+                Card(
                     modifier = Modifier
-                        .fillMaxSize()
-                        .padding(innerPadding)
-                        .padding(16.dp)
+                        .fillMaxWidth()
+                        .padding(bottom = 16.dp),
+                    elevation = CardDefaults.cardElevation(defaultElevation = 2.dp),
+                    colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surfaceVariant)
                 ) {
+                    Column(modifier = Modifier.padding(16.dp)) {
+                        Text(
+                            text = "今日のひとこと",
+                            style = MaterialTheme.typography.titleMedium,
+                            modifier = Modifier.padding(bottom = 8.dp),
+                            color = MaterialTheme.colorScheme.primary
+                        )
+                        Text(
+                            text = DailyTrivia.getTriviaForToday(),
+                            style = MaterialTheme.typography.bodyMedium
+                        )
+                    }
+                }
+
+                // ===== 変更点 ここから =====
+                // Text と ActionButton を Row で囲み、横一列に配置します
+                Row(
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .padding(bottom = 16.dp), // この行の下にリストとの余白を設けます
+                    horizontalArrangement = Arrangement.SpaceBetween, // 要素を両端に配置します
+                    verticalAlignment = Alignment.CenterVertically // 要素を垂直方向の中央に揃えます
+                ) {
+                    // 「リスト」テキスト
                     Text(
-                        "リスト",
+                        text = "リスト",
                         fontSize = 24.sp,
-                        style = MaterialTheme.typography.titleLarge,
-                        modifier = Modifier.padding(bottom = 16.dp)
+                        style = MaterialTheme.typography.titleLarge
+                        // ここにあった Modifier.padding(bottom = 16.dp) は親の Row に移動しました
                     )
-                    if (callList.isEmpty()) {
-                        Box(
-                            modifier = Modifier.fillMaxSize(),
-                            contentAlignment = Alignment.Center
-                        ) {
-                            Text(
-                                "通話相手が登録されていません。\n右上の「＋」ボタンから登録してください。",
-                                textAlign = TextAlign.Center
+                    // 「＋ 通話相手を追加」ボタン
+                    ActionButton(
+                        text = "＋ 通話相手を追加",
+                        onClick = onNavigateToScreen3
+                        // ここにあった Modifier は Row が管理するため不要になりました
+                    )
+                }
+                // ===== 変更点 ここまで =====
+                if (callList.isEmpty()) {
+                    Box(
+                        // ===== 変更 =====
+                        // Column が親になったため、残りのスペースを埋めるように weight を使用
+                        modifier = Modifier.fillMaxSize().weight(1f),
+                        contentAlignment = Alignment.Center
+                    ) {
+                        Text(
+                            "通話相手が登録されていません。\n上の「＋ 通話相手を追加」ボタンから登録してください。",
+                            textAlign = TextAlign.Center
+                        )
+                    }
+                } else {
+                    LazyColumn(
+                        verticalArrangement = Arrangement.spacedBy(8.dp)
+                    ) {
+                        items(callList, key = { it.id }) { info ->
+                            CallInfoItem(
+                                info = info,
+                                onVideoCall = { onNavigateToVideoCall(info.number) },
+                                onEdit = { onNavigateToEditScreen(info.id) },
+                                onDelete = { onDeleteCall(info.id) }
                             )
-                        }
-                    } else {
-                        LazyColumn(
-                            verticalArrangement = Arrangement.spacedBy(8.dp)
-                        ) {
-                            items(callList, key = { it.id }) { info ->
-                                CallInfoItem(
-                                    info = info,
-                                    onVideoCall = { onNavigateToVideoCall(info.number) },
-                                    onEdit = { onNavigateToEditScreen(info.id) },
-                                    onDelete = { onDeleteCall(info.id) }
-                                )
-                            }
                         }
                     }
                 }
-                ActionButton(
-                    text = "＋",
-                    onClick = onNavigateToScreen3,
-                    modifier = Modifier
-                        .align(Alignment.TopEnd)
-                        .padding(innerPadding)
-                        .padding(top = 8.dp, end = 16.dp)
-                )
+            }
+
+
             }
         }
     }
@@ -637,8 +766,14 @@ class MainActivity : ComponentActivity() {
         }
     }
 
-    @Composable//設定画面
-    fun Screen5(navController: NavController, modifier: Modifier = Modifier) {
+@Composable
+fun Screen5(
+    navController: NavController,
+    modifier: Modifier = Modifier,
+    settingsViewModel: SettingsViewModel
+) {
+        val currentFontSize by settingsViewModel.fontSize.collectAsState()
+
         Scaffold(
             bottomBar = {
                 NavigationBar(
@@ -653,20 +788,50 @@ class MainActivity : ComponentActivity() {
                 )
             }
         ) { innerPadding ->
-            Box(
+            Column(
                 modifier = Modifier
                     .fillMaxSize()
                     .padding(innerPadding)
                     .padding(16.dp),
-                contentAlignment = Alignment.TopStart
             ) {
                 Text(
                     "設定",
-                    fontSize = 24.sp,
                     style = MaterialTheme.typography.headlineMedium
                 )
 
+                Spacer(modifier = Modifier.height(24.dp))
+
+                // 文字サイズ設定 UI
+                Text(
+                    text = "文字サイズ",
+                    style = MaterialTheme.typography.titleMedium,
+                    modifier = Modifier.padding(bottom = 8.dp)
+                )
+                Row (
+                    modifier = Modifier.fillMaxWidth(),
+                    horizontalArrangement = Arrangement.spacedBy(8.dp)
+                ) {
+                    FontSize.values().forEach { fontSize ->
+                        Button(
+                            onClick = { settingsViewModel.setFontSize(fontSize) },
+                            colors = ButtonDefaults.buttonColors(
+                                containerColor = if (currentFontSize == fontSize) {
+                                    MaterialTheme.colorScheme.primary
+                                } else {
+                                    MaterialTheme.colorScheme.surfaceVariant
+                                },
+                                contentColor = if (currentFontSize == fontSize) {
+                                    MaterialTheme.colorScheme.onPrimary
+                                } else {
+                                    MaterialTheme.colorScheme.onSurfaceVariant
+                                }
+                            ),
+                            modifier = Modifier.weight(1f)
+                        ) {
+                            Text(fontSize.displayName)
+                        }
+                    }
+                }
             }
         }
     }
-}

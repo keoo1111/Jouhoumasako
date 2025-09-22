@@ -3,41 +3,43 @@ package com.example.a0726risu
 import android.os.Bundle
 import androidx.activity.ComponentActivity
 import androidx.activity.compose.setContent
-import androidx.compose.foundation.layout.Box
-import androidx.compose.foundation.layout.fillMaxSize
-import androidx.compose.material3.Button
-import androidx.compose.material3.Text
-import androidx.compose.ui.Alignment
-import androidx.compose.ui.Modifier
-import androidx.compose.foundation.layout.padding
-import androidx.compose.ui.unit.dp
+import androidx.compose.runtime.remember
+import com.example.a0726risu.ui.theme._0726risuTheme
+import androidx.compose.runtime.getValue
+import androidx.compose.runtime.mutableStateOf
+import androidx.compose.runtime.setValue
+import androidx.lifecycle.lifecycleScope
+import kotlinx.coroutines.launch
 
-// このファイルには VideoCallActivity クラスだけを記述します
 class VideoCallActivity : ComponentActivity() {
+    private var agoraToken by mutableStateOf<String?>(null)
+    private var statusText by mutableStateOf("トークンを取得中...")
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
-
-        // Intent からチャンネル名とトークンを受け取る
-        val channelName = intent.getStringExtra("CHANNEL_NAME")
-        val token = intent.getStringExtra("TOKEN")
+        val channelName = intent.getStringExtra("CHANNEL_NAME") ?: "test"
+        lifecycleScope.launch {
+            try {
+                val response = AgoraApi.service.getAgoraToken(channelName)
+                agoraToken = response.token
+                statusText = "相手の参加を待っています..."
+            } catch (e: Exception) {
+                e.printStackTrace()
+                statusText = "エラー: トークンの取得に失敗しました。"
+            }
+        }
 
         setContent {
-            // ここに、以前あなたが作成した VideoCallUi Composable を呼び出すロジックなどを実装します
-            // まずはコンパイルを通すために、簡単な UI を配置します
-            Box(
-                modifier = Modifier.fillMaxSize(),
-                contentAlignment = Alignment.Center
-            ) {
-                Text(text = "通話画面\nチャンネル名：$channelName")
+            _0726risuTheme {
+                val allTopics = remember { TopicRepository.getAllTopics() }
 
-                Button(
-                    onClick = { finish() }, // ひとまず終了ボタンを設置
-                    modifier = Modifier
-                        .align(Alignment.BottomCenter)
-                        .padding(bottom = 32.dp)
-                ) {
-                    Text("通話を終了")
-                }
+                VideoCallUi(
+                    statusText = "相手の参加を待っています...",
+                    hasRemoteUser = false, // 相手がいるかどうか (今は仮で false)
+                    onCallEnd = { finish() }, // 終了ボタンでアクティビティを閉じる
+                    localSurfaceView = { /* ローカル映像の View */ },
+                    remoteSurfaceView = { /* リモート映像の View */ },
+                    topics = allTopics // ★★★ 変更点 ★★★ 取得した全リストを渡す
+                )
             }
         }
     }

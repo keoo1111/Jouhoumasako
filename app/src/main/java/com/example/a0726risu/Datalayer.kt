@@ -14,7 +14,31 @@ import kotlinx.coroutines.launch
 import java.text.SimpleDateFormat
 import java.util.*
 
-// 【重要】このファイルにだけ、NotificationInfo と NotificationRepository の定義を記述します
+enum class FontSize(val scale: Float, val displayName: String) {
+    SMALL(0.8f, "小"),
+    MEDIUM(1.0f, "中"),
+    LARGE(1.2f, "大")
+}
+
+
+// --- データクラス ---
+
+data class CallInfo(
+    val id: String = UUID.randomUUID().toString(),
+    val name: String,
+    val number: String,
+    val time: String,
+    val daysOfWeek: Set<Int>
+)
+
+data class NotificationInfo(
+    val id: UUID = UUID.randomUUID(),
+    val title: String,
+    val message: String,
+    val timestamp: String
+)
+
+// --- 通知リポジトリ ---
 
 object NotificationRepository {
     private val _notifications = MutableStateFlow<List<NotificationInfo>>(emptyList())
@@ -24,7 +48,6 @@ object NotificationRepository {
     private val gson = Gson()
     private val repositoryScope = CoroutineScope(Dispatchers.IO + SupervisorJob())
 
-    // アプリ起動時に Application クラスから呼び出す
     fun init(context: Context) {
         sharedPreferences = context.getSharedPreferences("notification_prefs", Context.MODE_PRIVATE)
         loadNotifications()

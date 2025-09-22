@@ -11,7 +11,8 @@ import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.launch
-import java.util.*
+import kotlinx.coroutines.flow.MutableSharedFlow
+import kotlinx.coroutines.flow.asSharedFlow
 
 class CallViewModel(application: Application) : AndroidViewModel(application) {
 
@@ -73,4 +74,24 @@ class CallViewModel(application: Application) : AndroidViewModel(application) {
             }
         }
     }
+    sealed class UiEvent {
+        data class NavigateToVideoCall(val channelName: String, val token: String) : UiEvent()
+        data class ShowError(val message: String) : UiEvent()
+    }
+
+    private val _uiEvent = MutableSharedFlow<UiEvent>()
+    val uiEvent = _uiEvent.asSharedFlow()
+
+    fun fetchTokenAndNavigate(channelName: String) {
+        viewModelScope.launch(Dispatchers.IO) {
+            try {
+                val response = AgoraApi.service.getAgoraToken(channelName)
+                _uiEvent.emit(UiEvent.NavigateToVideoCall(channelName, response.token))
+            } catch (e: Exception) {
+                e.printStackTrace()
+                _uiEvent.emit(UiEvent.ShowError("トークンの取得に失敗しました：${e.message}"))
+            }
+        }
+    }
 }
+
