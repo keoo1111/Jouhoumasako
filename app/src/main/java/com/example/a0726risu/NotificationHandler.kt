@@ -18,7 +18,6 @@ import com.example.a0726risu.AppConstants.EXTRA_DAY_OF_WEEK
 import com.example.a0726risu.AppConstants.EXTRA_MESSAGE
 import com.example.a0726risu.AppConstants.EXTRA_TIME
 import com.example.a0726risu.AppConstants.EXTRA_TITLE
-import com.example.a0726risu.AppConstants.EXTRA_TOKEN
 
 // --- 通知受信レシーバー ---
 
@@ -85,7 +84,6 @@ class SnoozeReceiver : BroadcastReceiver() {
         val title = intent.getStringExtra(EXTRA_TITLE) ?: "通話リマインダー"
         val message = intent.getStringExtra(EXTRA_MESSAGE) ?: "時間です"
         val channelName = intent.getStringExtra(EXTRA_CHANNEL_NAME) ?: ""
-        val token = intent.getStringExtra(EXTRA_TOKEN) ?: ""
         val time = intent.getStringExtra("TIME") ?: ""
         val dayOfWeek = intent.getIntExtra("DAY_OF_WEEK", 0)
         val notificationId = (channelName + dayOfWeek + time).hashCode()
@@ -100,7 +98,6 @@ class SnoozeReceiver : BroadcastReceiver() {
             putExtra(EXTRA_TITLE, title)
             putExtra(EXTRA_MESSAGE, message)
             putExtra(EXTRA_CHANNEL_NAME, channelName)
-            putExtra(EXTRA_TOKEN, token)
             putExtra("TIME", time)
             putExtra("DAY_OF_WEEK", dayOfWeek)
         }

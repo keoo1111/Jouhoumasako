@@ -155,23 +155,22 @@ fun VideoCallUi(
         if (hasRemoteUser) {
             remoteSurfaceView()
         } else {
-            Box(modifier = Modifier.fillMaxSize()) {
-                localSurfaceView()
-            }
-        }
-
-        Box(
-            modifier = Modifier
-                .align(Alignment.TopEnd)
-                .padding(16.dp)
-                .width(120.dp)
-                .height(180.dp)
-                .clip(RoundedCornerShape(12.dp)) // 角を丸くする
-                .border(2.dp, Color.White, RoundedCornerShape(12.dp)) // 白い枠線を追加
-        ) {
             localSurfaceView()
         }
 
+        if (hasRemoteUser) {
+            Box(
+                modifier = Modifier
+                    .align(Alignment.TopEnd)
+                    .padding(16.dp)
+                    .width(120.dp)
+                    .height(180.dp)
+                    .clip(RoundedCornerShape(12.dp))
+                    .border(2.dp, Color.White, RoundedCornerShape(12.dp))
+            ) {
+                localSurfaceView()
+            }
+        }
         if (!hasRemoteUser) {
             Box(
                 modifier = Modifier.fillMaxSize(),
