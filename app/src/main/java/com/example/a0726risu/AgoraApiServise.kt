@@ -17,7 +17,7 @@ interface AgoraTokenApiService {
 }
 
 object AgoraApi {
-    private const val BASE_URL = "http://192.168.100.124:3000/"
+    private const val BASE_URL = "https://untrophied-semiprotective-peg.ngrok-free.dev"
 
     private val retrofit = Retrofit.Builder()
         .baseUrl(BASE_URL)
